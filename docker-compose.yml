@@ -1,0 +1,16 @@
+# Local FalkorDB (rule 4: Docker is an accepted way to run it).
+# Bound to localhost only; no password is set, so do not expose these ports.
+# The data-volume path below is from memory of the FalkorDB image docs - verify
+# on first run (scripts/smoke_test.py + restart) that data survives a restart.
+services:
+  falkordb:
+    image: falkordb/falkordb:latest
+    ports:
+      - "127.0.0.1:6379:6379"   # Redis protocol / graph queries
+      - "127.0.0.1:3000:3000"   # FalkorDB Browser
+    volumes:
+      - falkordb_data:/var/lib/falkordb/data
+    restart: unless-stopped
+
+volumes:
+  falkordb_data:

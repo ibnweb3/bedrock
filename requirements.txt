@@ -1,0 +1,5 @@
+# Top-level dependencies pinned to the versions installed and tested on 2026-10-15
+# (Python 3.13). Transitive deps (redis, httpcore, anyio, ...) resolve via pip.
+falkordb==1.8.0
+httpx==0.28.1
+python-dotenv==1.2.4

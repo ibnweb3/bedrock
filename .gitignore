@@ -1,0 +1,19 @@
+# Secrets - never commit (repo is public, hackathon rule 10)
+.env
+*.key
+*.pem
+
+# Local data (raw downloads are re-creatable; see docs/DATA_SOURCES.md)
+data/*
+!data/.gitkeep
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# Docker volumes / editor
+falkordb_data/
+.vscode/
+.idea/
