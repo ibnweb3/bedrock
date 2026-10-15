@@ -1,0 +1,8 @@
+{
+ "examples": [
+  {
+   "label": "Mixed bibliography (9 DOIs)",
+   "text": "Example reference list (DOIs only)\n\n[1] https://doi.org/10.1155/2021/6178569\n[2] https://doi.org/10.1186/s13046-018-0845-9\n[3] https://doi.org/10.1016/j.phrs.2019.104313\n[4] https://doi.org/10.1016/j.phrs.2020.104940\n[5] https://doi.org/10.1016/j.neubiorev.2019.09.040\n[6] https://doi.org/10.1016/j.jpdc.2021.07.009\n[7] https://doi.org/10.1111/iej.13488\n[8] https://doi.org/10.1080/14656566.2021.1882997\n[9] https://doi.org/10.0000/not-a-real-doi"
+  }
+ ]
+}

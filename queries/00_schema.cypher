@@ -7,3 +7,4 @@ CREATE INDEX FOR (v:Venue) ON (v.id);
 CREATE INDEX FOR (p:Paper) ON (p.pub_date);
 CREATE INDEX FOR (p:Paper) ON (p.retracted_at);
 CREATE INDEX FOR (p:Paper) ON (p.candidate);
+CREATE INDEX FOR (p:Paper) ON (p.doi);

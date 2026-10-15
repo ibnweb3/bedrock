@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Bedrock - bibliography provenance audit</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="top">
+    <h1>Bedrock</h1>
+    <p class="tag">What is your bibliography standing on?</p>
+  </header>
+
+  <main>
+    <section class="card" aria-labelledby="in-h">
+      <h2 id="in-h">Check a bibliography</h2>
+      <form id="audit-form">
+        <label for="refs">Paste DOIs or a reference list</label>
+        <textarea id="refs" name="refs" rows="8" required spellcheck="false" autocomplete="off"
+                  aria-describedby="refs-hint" placeholder="10.1234/example&#10;https://doi.org/10.5678/another"></textarea>
+        <p class="hint" id="refs-hint">Any text that contains DOIs works. Up to 300 per check. Ctrl/&#8984; + Enter runs it.</p>
+        <div class="row">
+          <button type="submit" class="primary" id="run">Audit bibliography</button>
+          <button type="button" id="example">Try an example</button>
+          <span id="status" role="status" aria-live="polite"></span>
+        </div>
+      </form>
+    </section>
+
+    <section id="empty" class="card empty">
+      <h2>Nothing checked yet</h2>
+      <p>Bedrock traces which <strong>retracted</strong> works a paper cites, directly or through one intermediate paper,
+        and shows the exact citation path. Start with a bibliography of your own, or load an example.</p>
+      <button type="button" class="primary" id="example2">Load the example</button>
+    </section>
+
+    <section id="results" hidden aria-labelledby="res-h">
+      <h2 id="res-h">Findings</h2>
+      <ul id="summary" class="chips" aria-label="Summary counts"></ul>
+      <div id="notice" class="notice" role="note"></div>
+      <div id="items"></div>
+
+      <section class="card" id="approve-card" aria-labelledby="ap-h" hidden>
+        <h2 id="ap-h">Proposed actions</h2>
+        <p class="hint">Nothing changes until you approve it. Tick the actions you accept, then apply.</p>
+        <ul id="proposals" class="proposals"></ul>
+        <div class="row">
+          <button type="button" class="primary" id="apply">Apply approved changes</button>
+          <button type="button" id="all">Approve all</button>
+          <span id="apply-status" role="status" aria-live="polite"></span>
+        </div>
+        <div id="applied" hidden>
+          <h3>Revised DOI list</h3>
+          <textarea id="revised" readonly rows="6" spellcheck="false" aria-label="Revised DOI list"></textarea>
+          <div class="row">
+            <button type="button" id="copy">Copy list</button>
+            <a id="download" class="button" download="bedrock-audit.md" href="#">Download audit report (.md)</a>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <section class="card muted" aria-labelledby="about-h">
+      <h2 id="about-h">How to read this</h2>
+      <ul class="plain">
+        <li>Findings are <strong>exact statements about an indexed corpus</strong>: <span id="corpus">loading&hellip;</span></li>
+        <li>This is <strong>not a prediction</strong>. We tested whether graph signals predict future retractions; they did not
+          reliably beat journal history (see <code>docs/RESULTS.md</code>).</li>
+        <li>&ldquo;No exposure found&rdquo; is <strong>not</strong> a clean bill of health: only indexed references, up to two hops, were checked.</li>
+        <li>A flag is a prompt for human review, never a finding about any author.</li>
+      </ul>
+    </section>
+  </main>
+
+  <footer>
+    Retractions: Retraction Watch database via Crossref. Citations: OpenAlex (CC0). Graph engine: FalkorDB.
+  </footer>
+  <script src="/app.js" defer></script>
+</body>
+</html>

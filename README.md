@@ -5,20 +5,28 @@
 Bedrock is an agent for the **Graph Hacks: Context for AI Agents** hackathon
 (WeMakeDevs × FalkorDB), entered in **Track 01 — Agents That Act on Connected Data**.
 
-Given a paper or a bibliography, it traces the multi-hop foundation of the work using a
-citation / co-authorship graph in FalkorDB, scores retraction risk from graph signals, and
-proposes (never auto-applies) an audit with the exact graph path behind every flag.
+Given a bibliography (a list of DOIs), it traces which **retracted** works the cited papers stand on,
+directly or through one intermediate paper, using a citation graph in FalkorDB. Every finding comes with
+the exact citation path, and the agent proposes (never auto-applies) edits that a person approves.
+It makes **exact statements about an indexed corpus, not predictions**: a backtest of whether graph
+signals predict future retractions found no reliable improvement over journal history
+([`docs/RESULTS.md`](docs/RESULTS.md)), so Bedrock does not claim to forecast anything.
 
-**Status: scaffold only.** Nothing below marked *planned* is built yet, and there are **no
-results yet**. Every number that ends up in this README will come from a script in this
-repo that you can re-run.
+**Status (work in progress).** Built and run: the data pipeline, the FalkorDB graph
+(2.27M papers, 7.4M citations, 1.7M co-author and 2.7M coupling edges), the graph signals and a
+leave-venue-out / venue-clustered temporal backtest. **First backtest result: the graph signals did not
+show a reliable improvement over venue-history baselines** (see Evaluation and
+[`docs/RESULTS.md`](docs/RESULTS.md)). Not built yet: the agent loop, the approval step and the UI.
+Every number in this README comes from a script in this repo that you can re-run.
 
 ## Why a graph
 
-Reference managers flag a paper that directly cites a retracted one. The questions that
-matter are multi-hop: does this paper stand on work that stands on retracted work? Is it in
-a citation cluster where retractions keep happening? Those are traversals, shortest paths and
-community structure — FalkorDB queries, not table lookups.
+Reference managers flag a paper that directly cites a retracted one. The question that matters is
+multi-hop: does this paper stand on work that itself stands on retracted work, and through which path?
+Finding that, and suggesting replacements that the community co-cites with a retracted work, are graph
+traversals — FalkorDB queries (`queries/audit/`), not table lookups. Honest scope note: the backtest showed
+that one-hop contamination is the strongest signal and multi-hop signals did not beat it for *prediction*;
+the value of the graph here is exact, explainable provenance, not forecasting.
 
 ## Graph data model (planned)
 
@@ -31,7 +39,11 @@ Edges
 - `(:Author)-[:WROTE]->(:Paper)`
 - `(:Paper)-[:CITES]->(:Paper)`
 - `(:Paper)-[:PUBLISHED_IN]->(:Venue)`
-- derived, built inside FalkorDB: `(:Author)-[:COAUTHOR]->(:Author)`, `(:Paper)-[:BIB_COUPLED {shared}]->(:Paper)`
+- derived, built inside FalkorDB by `queries/10_*.cypher` and `queries/11_*.cypher`:
+  `(:Author)-[:COAUTHOR {n, first}]->(:Author)` (n = joint papers, first = earliest joint date) and
+  `(:Paper)-[:BIB_COUPLED {shared}]->(:Paper)` (>= 2 shared references, ignoring references cited by more than 50
+  held papers). Both are queried undirected; as-of-T0 views filter on dates, not on the edge.
+  Paper nodes also carry `cited_n` (in-degree, `queries/05_cited_n.cypher`).
 
 Dates are stored as integers `YYYYMMDD`; the backtest's "as of T0" view is a filter such as
 `WHERE p.retracted_at <= $t0`. Retraction is a node property rather than a separate node to
@@ -45,6 +57,17 @@ FalkorDB algorithms **inside FalkorDB**. The Cypher lives in [`queries/`](querie
 application imports those exact files, so the README, the repo and the running product
 cannot drift apart. Staging files used during ingest are not a graph database and are not
 read at query time. A non-graph baseline exists **only** to score the evaluation.
+
+## Run the audit app
+
+```bash
+python scripts/serve.py            # http://127.0.0.1:8765  (localhost only; needs the loaded graph)
+```
+
+Paste DOIs or a reference list, press *Audit bibliography*, read the findings and citation paths, tick the
+proposed actions you accept, and apply them. Nothing is changed without that approval; the server re-runs the
+audit and applies only proposal ids it generated itself. Statuses: `RETRACTED`, `CITES_RETRACTED`, `TWO_HOP`,
+`NO_EXPOSURE_FOUND` (not a certification), `NOT_IN_CORPUS`.
 
 ## Quickstart (works today)
 
@@ -65,6 +88,7 @@ python scripts/pull_openalex.py retracted             # retracted DOIs -> OpenAl
 python scripts/select_venues.py --k-h 150             # stratified venue pool -> data/staging/venues.json
 python scripts/pull_openalex.py candidates --venues-file data/staging/venues.json --from 2017-01-01 --to 2022-12-31
 python scripts/load_graph.py --reset                  # staged data -> FalkorDB (~7 min, ~1.2 GiB RAM)
+python scripts/derive_edges.py                        # COAUTHOR + BIB_COUPLED in FalkorDB (~4 min) + sample checks
 ```
 
 Both OpenAlex pulls are resumable and stop at `--max-calls`. Output is JSON Lines in
@@ -80,15 +104,21 @@ signals, and compare against non-graph baselines (venue retraction rate, citatio
 prior-retraction author). Metrics: AUPRC, precision@k, lift over base rate, bootstrap
 confidence intervals; plus an ablation of multi-hop signals vs. one-hop joins.
 
-| Method | AUPRC | Precision@1% | Lift |
-|---|---|---|---|
-| Venue-rate baseline | — | — | — |
-| Citation-count baseline | — | — | — |
-| Prior-retraction-author baseline | — | — | — |
-| Graph signals (1-hop only) | — | — | — |
-| Graph signals (multi-hop) | — | — | — |
+First run (stratum H, T0 = 2020-12-31; 134,798 candidates, 140 positives; full tables in [`docs/RESULTS.md`](docs/RESULTS.md)):
 
-*Empty on purpose: no run has happened.*
+| Method | AP | Recall@1% (lift) | Recall@5% |
+|---|---|---|---|
+| random control | 0.0012 | 0.016 (1.6x) | 0.054 |
+| best baseline (venue retraction rate) | 0.0066 | 0.000 (0x) | 0.550 |
+| author prior retraction (one-hop) | 0.0032 | 0.077 (7.7x) | 0.194 |
+| cites a retracted paper (one-hop) | 0.0066 | 0.100 (10.0x) | 0.143 |
+| 2 citation hops (multi-hop) | 0.0021 | 0.073 (7.3x) | 0.117 |
+| graph composite | 0.0041 | 0.071 (7.1x) | 0.286 |
+| venue count + graph composite | 0.0074 | 0.157 (15.7x) | 0.379 |
+
+**Result: no reliable improvement.** The pre-registered criterion (paired 95% interval excluding 0, surviving the
+removal of the largest venue) was not met at any cutoff, and the multi-hop signals did not beat their one-hop
+counterparts. Positives are concentrated in 20-27 venues, so the study has low power.
 
 Caveats stated up front: retraction is a lagging, detection-driven label; mass retractions by a
 single publisher can dominate it; OpenAlex author-ID disambiguation uses later information
