@@ -131,3 +131,45 @@ Consequences for how results may be reported:
 4. A model that has not seen any member of a batch retracted before T0 cannot recognise the batch
    from retraction history alone; the community/co-citation signals have to carry that. Whether
    they do is what the backtest measures, and "no lift" is a possible honest outcome.
+
+## Pre-registered signals, composites and metrics (written BEFORE any evaluation was run)
+
+Everything is computed as of T0; "window" = candidate papers published in (T0 - 4 years, T0];
+"retracted by T0" = Retraction Watch retraction date <= T0. Graph signals are Cypher in FalkorDB
+(`queries/features/`); only metric arithmetic and the bootstrap are Python.
+
+Baselines (no graph reasoning):
+- `b_venue_count` - retractions dated <= T0 in the paper's venue (all publication years).
+- `b_venue_rate`  - (window papers in the venue retracted by T0) / (window papers in the venue).
+- `b_cites_asof`  - citations from held papers published <= T0 (a weak control; counts only the dataset).
+- `b_author_prior` - number of the paper's authors who wrote a paper retracted by T0 (author distance 0,
+  i.e. a one-hop join).
+
+Graph signals:
+- `g_contam1` - distinct retracted-by-T0 papers the paper cites directly.
+- `g_contam2` - distinct retracted-by-T0 papers reached in exactly 2 citation hops through a paper not
+  itself retracted by T0 (and not cited directly).
+- `g_coauth1` - number of the paper's authors at co-author distance exactly 1 from an author of a
+  retracted-by-T0 paper (COAUTHOR edge with `first <= T0`, author not themselves at distance 0).
+- `g_coupled_n`, `g_coupled_w` - BIB_COUPLED neighbours retracted by T0: count, and sum of shared references.
+- `g_comm_rate`, `g_comm_ret` - label-propagation community (over BIB_COUPLED among papers published <= T0):
+  share and count of members retracted by T0.
+
+Composites (no fitting; mean of percentile ranks within the evaluated subset, ties averaged):
+- `G_COMP`   = mean rank of g_contam1, g_contam2, g_coauth1, g_coupled_w, g_comm_rate.
+- `COMBINED` = mean rank of b_venue_count, g_contam1, g_contam2, g_coauth1, g_coupled_w, g_comm_rate.
+- `BASE_BEST` = whichever single baseline has the highest AP on the evaluated subset (this favours the
+  baseline, so a graph improvement over it is conservative).
+
+Controls that must behave: `oracle` (the label) must score AP = 1; `random` must score about the base rate.
+
+Metrics: average precision (AP, ties broken randomly and averaged over 5 seeds), recall@1% and @5% of the
+ranked list, lift@1% = recall@1% / 0.01. Primary subset: stratum H, T0 = 2020-12-31. Secondary: H at
+T0 = 2021-12-31. Regime check only: T0 = 2022-12-31. Also reported: pooled strata, results excluding the
+venue with the most positives, leave-one-venue-out for the five venues with most positives, and a
+venue-clustered bootstrap (95% interval, B = 300) including the paired difference
+(COMBINED - BASE_BEST) and (G_COMP - BASE_BEST). A claim of improvement requires the paired interval to
+exclude 0 AND the result to survive dropping the largest venue; otherwise the README says no reliable lift.
+
+Known leakage that cannot be removed (state in the README): authors are kept in the graph only if they have
+>= 2 papers in the full 2017-2022 data, and `cited_n <= 50` filtering of coupling uses all-time in-degree.
