@@ -1,7 +1,8 @@
 """Pull OpenAlex works into data/staging/*.jsonl as slim records (authors already hashed).
 
     python scripts/pull_openalex.py retracted   --max-calls 1500
-    python scripts/pull_openalex.py candidates  --source-ids S1,S2 --from 2019-01-01 --to 2021-12-31
+    python scripts/pull_openalex.py candidates  --venues-file data/staging/venues.json --from 2017-01-01 --to 2022-12-31
+    (only type:article works are pulled)
 
 Both subcommands are resumable and stop at --max-calls (cost is roughly $0.0001 per list call;
 the free key budget is about $1/day - run `python scripts/openalex_check.py` to see it).
@@ -98,44 +99,57 @@ def pull_retracted(args) -> int:
 
 
 def pull_candidates(args) -> int:
-    ids = [s.strip() for s in args.source_ids.split(",") if s.strip()]
-    if not ids or len(ids) > 100:
-        print("--source-ids needs 1-100 OpenAlex source IDs (e.g. S137773608)")
+    if args.venues_file:
+        v = json.loads(Path(args.venues_file).read_text(encoding="utf-8"))
+        ids = sorted({x["id"] for vs in v["strata"].values() for x in vs})
+    else:
+        ids = [s.strip() for s in (args.source_ids or "").split(",") if s.strip()]
+    if not ids:
+        print("give --venues-file data/staging/venues.json or --source-ids S1,S2")
         return 2
-    filt = (
-        "primary_location.source.id:" + "|".join(ids)
-        + f",from_publication_date:{args.date_from},to_publication_date:{args.date_to}"
-    )
+    # OpenAlex allows <=100 OR-values per filter, so venues go in batches (resumable per batch).
+    batches = [ids[i : i + args.venue_batch] for i in range(0, len(ids), args.venue_batch)]
+    suffix = f",type:article,from_publication_date:{args.date_from},to_publication_date:{args.date_to}"
     out_path = STAGING / "candidates.jsonl"
     state_path = STAGING / "candidates.state.json"
     STAGING.mkdir(parents=True, exist_ok=True)
 
-    state = {"filter": filt, "cursor": "*", "written": 0}
+    signature = {"venues": ids, "suffix": suffix}
+    state = {"signature": signature, "batch": 0, "cursor": "*", "written": 0}
     if state_path.exists() and not args.restart:
         prev = json.loads(state_path.read_text(encoding="utf-8"))
-        if prev["filter"] != filt:
-            print("state file belongs to a different filter; use --restart to discard it")
+        if prev["signature"] != signature:
+            print("state file belongs to a different venue list/filter; use --restart to discard it")
             return 2
         state = prev
     elif args.restart and out_path.exists():
         out_path.unlink()
 
     client, salt = _client(args.max_calls)
+    print(f"{len(ids)} venues in {len(batches)} batches; resuming at batch {state['batch']}, written so far {state['written']}")
     try:
         with open(out_path, "a", encoding="utf-8") as out:
-            for results, nxt in client.iter_pages(filt, cursor=state["cursor"]):
-                for w in results:
-                    rec = slim_work(w, salt)
-                    if rec:
-                        out.write(json.dumps(rec) + "\n")
-                        state["written"] += 1
-                out.flush()
-                state["cursor"] = nxt
+            while state["batch"] < len(batches):
+                filt = "primary_location.source.id:" + "|".join(batches[state["batch"]]) + suffix
+                for results, nxt in client.iter_pages(filt, cursor=state["cursor"]):
+                    for w in results:
+                        rec = slim_work(w, salt)
+                        if rec:
+                            out.write(json.dumps(rec) + "\n")
+                            state["written"] += 1
+                    out.flush()
+                    state["cursor"] = nxt or "*"
+                    state_path.write_text(json.dumps(state), encoding="utf-8")
+                    if state["written"] % 5000 < 100:
+                        print(f"  batch {state['batch'] + 1}/{len(batches)} written {state['written']} calls {client.calls}")
+                    if state["written"] >= args.max_works:
+                        print("reached --max-works")
+                        return 0
+                    if not nxt:
+                        break
+                state["batch"] += 1
+                state["cursor"] = "*"
                 state_path.write_text(json.dumps(state), encoding="utf-8")
-                if state["written"] % 1000 < 100:
-                    print(f"  written {state['written']}, calls {client.calls}")
-                if state["written"] >= args.max_works or not nxt:
-                    break
     except BudgetExceeded as exc:
         print("stopped:", exc, "- rerun to continue")
     except OpenAlexError as exc:
@@ -155,11 +169,13 @@ def main() -> int:
     r.set_defaults(fn=pull_retracted)
 
     c = sub.add_parser("candidates", help="pull candidate works from chosen venues")
-    c.add_argument("--source-ids", required=True)
+    c.add_argument("--source-ids", default="", help="comma-separated OpenAlex source IDs")
+    c.add_argument("--venues-file", default="", help="data/staging/venues.json from select_venues.py")
+    c.add_argument("--venue-batch", type=int, default=50)
     c.add_argument("--from", dest="date_from", required=True)
     c.add_argument("--to", dest="date_to", required=True)
-    c.add_argument("--max-works", type=int, default=20000)
-    c.add_argument("--max-calls", type=int, default=1000)
+    c.add_argument("--max-works", type=int, default=400000)
+    c.add_argument("--max-calls", type=int, default=3500)
     c.add_argument("--restart", action="store_true")
     c.set_defaults(fn=pull_candidates)
 

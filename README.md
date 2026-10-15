@@ -62,7 +62,9 @@ python -m unittest discover -s tests
 python scripts/openalex_check.py                      # key + field-name check (free)
 python scripts/pull_retraction_watch.py --download    # ~67.5 MB CSV -> data/staging/retractions.jsonl
 python scripts/pull_openalex.py retracted             # retracted DOIs -> OpenAlex works
-python scripts/pull_openalex.py candidates --source-ids S... --from 2019-01-01 --to 2021-12-31
+python scripts/select_venues.py --k-h 150             # stratified venue pool -> data/staging/venues.json
+python scripts/pull_openalex.py candidates --venues-file data/staging/venues.json --from 2017-01-01 --to 2022-12-31
+python scripts/load_graph.py --reset                  # staged data -> FalkorDB (~7 min, ~1.2 GiB RAM)
 ```
 
 Both OpenAlex pulls are resumable and stop at `--max-calls`. Output is JSON Lines in
