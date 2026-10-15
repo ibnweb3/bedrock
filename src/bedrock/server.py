@@ -13,9 +13,11 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+from .agent import AuditAgent
 from .audit import Auditor, apply_approved, build_proposals, extract_dois
 from .config import load_settings
 from .graph import connect
+from .llm import GroqClient
 
 WEB = Path(__file__).resolve().parent / "web"
 STATIC = {"/": "index.html", "/index.html": "index.html", "/style.css": "style.css", "/app.js": "app.js",
@@ -26,6 +28,13 @@ CSP = ("default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' 
 
 _graph = None
 _graph_lock = threading.Lock()
+_agent_lock = threading.Lock()  # one agent run at a time: Groq's free tier has tight token budgets
+
+
+def make_agent() -> AuditAgent:
+    s = load_settings()
+    llm = GroqClient(s.groq_api_key, s.groq_model) if s.groq_api_key else None
+    return AuditAgent(graph(), llm)
 _meta: dict = {}
 
 
@@ -75,7 +84,9 @@ class Handler(BaseHTTPRequestHandler):
         path = self.path.split("?")[0]
         if path == "/api/health":
             try:
-                return self._json(200, {"ok": True, **corpus_meta()})
+                st = load_settings()
+                return self._json(200, {"ok": True, **corpus_meta(), "agent_available": bool(st.groq_api_key),
+                                        "agent_model": st.groq_model if st.groq_api_key else None})
             except Exception:  # noqa: BLE001
                 return self._json(503, {"ok": False, "error": "The graph database is not reachable. Start it with: docker compose up -d"})
         name = STATIC.get(path)
@@ -86,7 +97,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = self.path.split("?")[0]
-        if path not in ("/api/audit", "/api/apply"):
+        if path not in ("/api/audit", "/api/apply", "/api/agent"):
             return self._json(404, {"error": "not found"})
         try:
             length = int(self.headers.get("Content-Length", "0"))
@@ -103,6 +114,9 @@ class Handler(BaseHTTPRequestHandler):
         if not dois:
             return self._json(400, {"error": "No DOIs found. Paste DOIs (like 10.1234/abc) or a reference list that contains them."})
         try:
+            if path == "/api/agent":
+                with _agent_lock:
+                    return self._json(200, make_agent().run(text, str(data.get("question", ""))[:500]))
             result = Auditor(graph()).audit(dois)
             proposals = build_proposals(result)
             if path == "/api/audit":

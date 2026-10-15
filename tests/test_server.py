@@ -95,5 +95,43 @@ class ServerTests(unittest.TestCase):
         self.assertNotIn("10.1000/r1", json.loads(ok)["revised_dois"])
 
 
+    def test_agent_endpoint_returns_answer_trace_and_independent_audit(self):
+        from bedrock.agent import AuditAgent
+        from test_agent import FakeLLM, call, final
+
+        llm = FakeLLM([call("audit_bibliography"), final("10.1000/r1 was retracted; 10.1000/b depends on it.")])
+        original = server.make_agent
+        server.make_agent = lambda: AuditAgent(server.graph(), llm)
+        try:
+            code, _, body = self.call("/api/agent", {"text": "10.1000/r1 10.1000/b", "question": "what is wrong?"})
+        finally:
+            server.make_agent = original
+        data = json.loads(body)
+        self.assertEqual(code, 200)
+        self.assertEqual(data["source"], "agent")
+        self.assertTrue(data["verification"]["ok"])
+        self.assertEqual(data["trace"][0]["tool"], "audit_bibliography")
+        self.assertEqual(data["audit"]["summary"]["RETRACTED"], 1)
+        self.assertIn("what is wrong?", json.dumps(llm.seen[0]))
+
+    def test_agent_endpoint_without_key_falls_back_to_plain_audit(self):
+        from bedrock.agent import AuditAgent
+
+        original = server.make_agent
+        server.make_agent = lambda: AuditAgent(server.graph(), None)
+        try:
+            code, _, body = self.call("/api/agent", {"text": "10.1000/r1"})
+        finally:
+            server.make_agent = original
+        data = json.loads(body)
+        self.assertEqual(code, 200)
+        self.assertEqual(data["source"], "fallback")
+        self.assertIn("not configured", data["error"])
+        self.assertEqual(data["audit"]["items"][0]["status"], "RETRACTED")
+
+    def test_agent_endpoint_rejects_text_without_dois(self):
+        self.assertEqual(self.call("/api/agent", {"text": "nothing here"})[0], 400)
+
+
 if __name__ == "__main__":
     unittest.main()

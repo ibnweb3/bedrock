@@ -111,8 +111,56 @@ async function post(path, body) {
   return data;
 }
 
+/* Minimal, safe Markdown subset for the agent's answer: **bold**, "- " bullets, paragraphs. DOM calls only. */
+function inline(text) {
+  const frag = document.createDocumentFragment();
+  text.split(/\*\*(.+?)\*\*/g).forEach((part, i) => {
+    if (!part) return;
+    frag.append(i % 2 ? el("strong", { text: part }) : document.createTextNode(part.replace(/\*/g, "")));
+  });
+  return frag;
+}
+function renderAnswer(container, text) {
+  container.replaceChildren();
+  let list = null;
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    const bullet = line.match(/^[-•]\s+(.*)$/);
+    if (bullet) {
+      if (!list) { list = el("ul"); container.append(list); }
+      const li = el("li"); li.append(inline(bullet[1])); list.append(li);
+    } else if (line) {
+      list = null;
+      const p = el("p"); p.append(inline(line)); container.append(p);
+    } else {
+      list = null;
+    }
+  }
+}
+
+function renderAgent(data) {
+  const card = $("#agent-card");
+  if (!data.answer && !data.error) { card.hidden = true; return; }
+  card.hidden = false;
+  renderAnswer($("#agent-answer"), data.answer || "");
+  const w = $("#agent-warn");
+  const ung = data.verification && !data.verification.ok ? data.verification.ungrounded : [];
+  w.hidden = ung.length === 0;
+  w.textContent = ung.length ? `Check before trusting: the agent mentioned DOIs that no tool returned (${ung.join(", ")}). The findings below come straight from the graph.` : "";
+  const er = $("#agent-error");
+  er.hidden = !data.error;
+  er.textContent = data.error || "";
+  const ol = $("#agent-trace");
+  ol.replaceChildren(...(data.trace || []).map((t) => el("li", { text: `${t.tool}(${t.arguments}) → ${t.result}${t.ok ? "" : " [failed]"} (${t.seconds}s)` })));
+  const u = data.usage || {};
+  $("#agent-meta").textContent = data.source === "agent"
+    ? `Model ${data.model}; ${u.calls ?? "?"} model calls, ${u.prompt_tokens ?? "?"} prompt / ${u.completion_tokens ?? "?"} completion tokens. The agent has read-only tools and cannot change anything; only you can approve edits below.`
+    : "No model output was used for this summary.";
+}
+
 function render(data) {
   const { audit } = data;
+  renderAgent(data);
   proposals = data.proposals;
   const s = audit.summary;
   const chips = $("#summary");
@@ -152,6 +200,22 @@ $("#audit-form").addEventListener("submit", async (ev) => {
     lastText = text;
     render(data);
     setBusy(btn, false, st, `Checked ${data.audit.summary.input} DOIs`);
+  } catch (e) {
+    setBusy(btn, false, st, "");
+    showError(st, e.message);
+  }
+});
+
+$("#agent-run").addEventListener("click", async () => {
+  const text = $("#refs").value.trim();
+  const btn = $("#agent-run"), st = $("#status");
+  if (!text) { showError(st, "Paste some DOIs first, or try the example."); $("#refs").focus(); return; }
+  setBusy(btn, true, st, "The agent is working (a few seconds)…");
+  try {
+    const data = await post("/api/agent", { text, question: $("#question").value });
+    lastText = text;
+    render(data);
+    setBusy(btn, false, st, data.source === "agent" ? "Agent finished" : "Agent unavailable; showing the plain audit");
   } catch (e) {
     setBusy(btn, false, st, "");
     showError(st, e.message);
@@ -217,6 +281,9 @@ $("#copy").addEventListener("click", async () => {
     const d = await r.json();
     if (!r.ok) throw new Error(d.error);
     const when = d.retraction_snapshot_downloaded_utc ? `; Retraction Watch snapshot downloaded ${d.retraction_snapshot_downloaded_utc.slice(0, 10)}` : "";
+    $("#agent-run").hidden = !d.agent_available;
+    $("#agent-box").hidden = !d.agent_available;
+    $("#agent-off").hidden = !!d.agent_available;
     c.textContent = `${d.papers_indexed.toLocaleString()} papers and ${d.retracted_works.toLocaleString()} retracted works${when}.`;
   } catch (e) {
     c.textContent = e.message || "the graph database is not reachable.";

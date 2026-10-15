@@ -22,11 +22,18 @@
         <textarea id="refs" name="refs" rows="8" required spellcheck="false" autocomplete="off"
                   aria-describedby="refs-hint" placeholder="10.1234/example&#10;https://doi.org/10.5678/another"></textarea>
         <p class="hint" id="refs-hint">Any text that contains DOIs works. Up to 300 per check. Ctrl/&#8984; + Enter runs it.</p>
+        <div id="agent-box" hidden>
+          <label for="question">Question for the agent (optional)</label>
+          <input type="text" id="question" name="question" maxlength="300" autocomplete="off" spellcheck="false"
+                 placeholder="Audit this bibliography and tell me what to fix.">
+        </div>
         <div class="row">
           <button type="submit" class="primary" id="run">Audit bibliography</button>
+          <button type="button" id="agent-run" hidden>Audit with agent</button>
           <button type="button" id="example">Try an example</button>
           <span id="status" role="status" aria-live="polite"></span>
         </div>
+        <p class="hint" id="agent-off" hidden>The agent is off. Add <code>GROQ_API_KEY</code> to <code>.env</code> to enable it; the plain audit works without it.</p>
       </form>
     </section>
 
@@ -39,6 +46,17 @@
 
     <section id="results" hidden aria-labelledby="res-h">
       <h2 id="res-h">Findings</h2>
+      <section class="card" id="agent-card" aria-labelledby="ag-h" hidden>
+        <h2 id="ag-h">Agent summary</h2>
+        <p id="agent-warn" class="warn" hidden></p>
+        <div id="agent-answer" class="answer"></div>
+        <p id="agent-error" class="hint" hidden></p>
+        <details class="trace">
+          <summary>What the agent did</summary>
+          <ol id="agent-trace"></ol>
+          <p class="hint" id="agent-meta"></p>
+        </details>
+      </section>
       <ul id="summary" class="chips" aria-label="Summary counts"></ul>
       <div id="notice" class="notice" role="note"></div>
       <div id="items"></div>

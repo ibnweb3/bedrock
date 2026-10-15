@@ -16,6 +16,10 @@ class PureTests(unittest.TestCase):
                 "3. (10.1234/abc.5) duplicate. 4. not a doi 10.12/short")
         self.assertEqual(extract_dois(text), ["10.1234/abc.5", "10.5555/xyz-9"])
 
+    def test_extract_dois_ignores_markdown_emphasis(self):
+        text = "**10.1155/2021/6178569** - retracted; see *10.1186/s13046-018-0845-9*, and **10.0000/not-a-real-doi**."
+        self.assertEqual(extract_dois(text), ["10.1155/2021/6178569", "10.1186/s13046-018-0845-9", "10.0000/not-a-real-doi"])
+
     def test_fmt_date(self):
         self.assertEqual(fmt_date(20210601), "2021-06-01")
         self.assertIsNone(fmt_date(None))

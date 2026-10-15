@@ -69,6 +69,16 @@ proposed actions you accept, and apply them. Nothing is changed without that app
 audit and applies only proposal ids it generated itself. Statuses: `RETRACTED`, `CITES_RETRACTED`, `TWO_HOP`,
 `NO_EXPOSURE_FOUND` (not a certification), `NOT_IN_CORPUS`.
 
+### The agent (optional, needs a free Groq key)
+
+`python scripts/serve.py` also enables an **Audit with agent** button when `GROQ_API_KEY` is set in `.env`
+([free key](https://console.groq.com/keys)). A tool-calling model (default `openai/gpt-oss-120b`) chooses between
+three **read-only** tools (`audit_bibliography`, `explain_finding`, `find_dois`), each a thin wrapper over the Cypher in
+`queries/audit/`, and writes a short summary. Guard rails: the agent has no tool that changes anything (edits are applied
+only after you approve them); every DOI in its answer is checked against what the tools returned and a mismatch is shown
+as a warning; the findings cards are computed from the graph independently of the model; and without a key or when the
+model is rate-limited you still get the full audit and a plain summary.
+
 ## Quickstart (works today)
 
 ```bash

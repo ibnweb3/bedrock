@@ -21,8 +21,8 @@ from .graph import read_query
 from .openalex import norm_doi
 
 MAX_INPUT_DOIS = 300
-_DOI_RE = re.compile(r"10\.\d{4,9}/[^\s\"<>]+", re.IGNORECASE)
-_TRAIL = ".,;:)]}>'\""
+_DOI_RE = re.compile(r"10\.\d{4,9}/[^\s\"<>*]+", re.IGNORECASE)  # * ends a DOI (Markdown bold)
+_TRAIL = ".,;:)]}>'\"*_"
 
 RETRACTED, DIRECT, TWO_HOP, CLEAN, UNKNOWN = (
     "RETRACTED", "CITES_RETRACTED", "TWO_HOP", "NO_EXPOSURE_FOUND", "NOT_IN_CORPUS",

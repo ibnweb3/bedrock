@@ -24,6 +24,8 @@ class Settings:
     graph_name: str
     openalex_api_key: str
     author_hash_salt: str
+    groq_api_key: str = ""
+    groq_model: str = "openai/gpt-oss-120b"
 
 
 def load_settings() -> Settings:
@@ -34,4 +36,6 @@ def load_settings() -> Settings:
         graph_name=os.environ.get("FALKORDB_GRAPH", "bedrock"),
         openalex_api_key=os.environ.get("OPENALEX_API_KEY", ""),
         author_hash_salt=os.environ.get("AUTHOR_HASH_SALT", ""),
+        groq_api_key=os.environ.get("GROQ_API_KEY", ""),
+        groq_model=os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b"),
     )
