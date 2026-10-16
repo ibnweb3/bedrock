@@ -1,0 +1,9 @@
+{
+  "graph_key_at_export": "bedrock_demo",
+  "dump_bytes": 32716264,
+  "gzip_bytes": 17297498,
+  "sha256_of_gzip": "8ccf6e641bde8eb270264a71dd9d2de14875c028f3692bd23e9d94f00aa5b887",
+  "falkordb_module_version": "42201",
+  "nodes": 318942,
+  "edges": 530894
+}

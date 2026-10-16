@@ -129,6 +129,41 @@ class ServerTests(unittest.TestCase):
         self.assertIn("not configured", data["error"])
         self.assertEqual(data["audit"]["items"][0]["status"], "RETRACTED")
 
+    def test_public_mode_agent_budget_exhausted_gives_plain_audit_without_calling_model(self):
+        from bedrock.ratelimit import Limits, SlidingWindow
+
+        original_limits, original_make = server.LIMITS, server.make_agent
+        lim = Limits(public=True)
+        lim.agent_ip = SlidingWindow(0, 3600)   # budget already used up
+        server.LIMITS = lim
+
+        def boom():
+            raise AssertionError("the model agent must not be built when the budget is used up")
+
+        server.make_agent = boom
+        try:
+            code, _, body = self.call("/api/agent", {"text": "10.1000/r1"})
+        finally:
+            server.LIMITS, server.make_agent = original_limits, original_make
+        data = json.loads(body)
+        self.assertEqual(code, 200)
+        self.assertTrue(data["rate_limited"])
+        self.assertEqual(data["source"], "fallback")
+        self.assertEqual(data["audit"]["items"][0]["status"], "RETRACTED")
+
+    def test_public_mode_audit_limit_returns_429(self):
+        from bedrock.ratelimit import Limits, SlidingWindow
+
+        original = server.LIMITS
+        lim = Limits(public=True)
+        lim.audit_ip = SlidingWindow(0, 3600)
+        server.LIMITS = lim
+        try:
+            code, _, _ = self.call("/api/audit", {"text": "10.1000/r1"})
+        finally:
+            server.LIMITS = original
+        self.assertEqual(code, 429)
+
     def test_agent_endpoint_rejects_text_without_dois(self):
         self.assertEqual(self.call("/api/agent", {"text": "nothing here"})[0], 400)
 

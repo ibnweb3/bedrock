@@ -12,11 +12,19 @@ It makes **exact statements about an indexed corpus, not predictions**: a backte
 signals predict future retractions found no reliable improvement over journal history
 ([`docs/RESULTS.md`](docs/RESULTS.md)), so Bedrock does not claim to forecast anything.
 
-**Status (work in progress).** Built and run: the data pipeline, the FalkorDB graph
-(2.27M papers, 7.4M citations, 1.7M co-author and 2.7M coupling edges), the graph signals and a
-leave-venue-out / venue-clustered temporal backtest. **First backtest result: the graph signals did not
-show a reliable improvement over venue-history baselines** (see Evaluation and
-[`docs/RESULTS.md`](docs/RESULTS.md)). Not built yet: the agent loop, the approval step and the UI.
+**Try it in one command** (needs Docker; details in [`docs/DEPLOY.md`](docs/DEPLOY.md)):
+
+```bash
+docker compose --profile demo up --build app      # then open http://127.0.0.1:8765
+```
+
+**Status.** Built and working: the data pipeline, the FalkorDB graph, the audit queries, the web app with an
+approval step, the tool-calling agent, and a leave-venue-out / venue-clustered temporal backtest. **The backtest
+result was negative: graph signals did not reliably beat venue-history baselines at predicting retractions**
+(see Evaluation and [`docs/RESULTS.md`](docs/RESULTS.md)), which is why the product is an exact provenance audit and
+not a forecaster. The research graph has 2.5M nodes (312k papers held in the corpus plus 2.0M cited-only stubs, 1.7M
+co-author and 2.7M coupling edges); the audit only needs the 312k papers and the citations between them, and the
+published 17 MB snapshot (`deploy/`) is that slim graph, verified to give identical audit output on 2,501 DOIs.
 Every number in this README comes from a script in this repo that you can re-run.
 
 ## Why a graph
@@ -28,7 +36,7 @@ traversals — FalkorDB queries (`queries/audit/`), not table lookups. Honest sc
 that one-hop contamination is the strongest signal and multi-hop signals did not beat it for *prediction*;
 the value of the graph here is exact, explainable provenance, not forecasting.
 
-## Graph data model (planned)
+## Graph data model
 
 Nodes
 - `Paper {id, doi, pub_date, venue_id, retracted_at?, retraction_reasons?}`
@@ -79,7 +87,7 @@ only after you approve them); every DOI in its answer is checked against what th
 as a warning; the findings cards are computed from the graph independently of the model; and without a key or when the
 model is rate-limited you still get the full audit and a plain summary.
 
-## Quickstart (works today)
+## Quickstart for development (full pipeline)
 
 ```bash
 cp .env.example .env              # then fill in values; .env is git-ignored
@@ -106,7 +114,7 @@ Both OpenAlex pulls are resumable and stop at `--max-calls`. Output is JSON Line
 OpenAlex works are never stored. Staging files are ETL input only — nothing reads them at
 query time.
 
-## Evaluation (planned)
+## Evaluation (pre-registered backtest)
 
 Leakage-safe temporal backtest: build the graph from what was known at a cutoff T0, label
 papers by whether they were retracted in the following 24 months, rank candidates by graph
@@ -150,10 +158,21 @@ before ingest; names, emails and ORCIDs are dropped. The demo does not publish a
 
 ## AI assistance disclosure (hackathon rule 11)
 
-This project is built with **Claude Code** (Anthropic) as a coding assistant. *To be completed
-before submission with specifics on which components Claude wrote and which parts the
-participant designed, ran and verified.* The participant's design decisions are logged in
-[`docs/DECISIONS.md`](docs/DECISIONS.md).
+**Coding assistant.** Most of the code in this repository (the pull and load scripts, the Cypher in `queries/`,
+the audit module, the agent, the web app, the tests and the docs) was written by **Claude Code** (Anthropic) working
+from the participant's instructions in a single long session.
+
+**What the participant did.** Chose the track and the product idea after comparing several candidates; set the
+rules to follow (FalkorDB as the central database, hashed authors, no invented numbers, a fresh public repo);
+obtained and supplied the API keys; approved the backtest design and its size (150 high-history venues);
+reviewed the first backtest result, which failed the pre-registered criterion, and **decided to change the product
+from retraction prediction to an exact citation-provenance audit**; decided to use Groq's free tier for the agent;
+and approves each commit, push and deployment. The decisions are logged in [`docs/DECISIONS.md`](docs/DECISIONS.md).
+
+**AI inside the product.** At run time the optional agent calls **Groq-hosted `openai/gpt-oss-120b`** (tool
+calling). It has three read-only tools, cannot change anything, and its answer is checked against the tool results;
+the findings themselves are computed by Cypher queries in FalkorDB, not by the model. Without a Groq key the
+product works as a plain graph audit.
 
 ## Rules compliance
 

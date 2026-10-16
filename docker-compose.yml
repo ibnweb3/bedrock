@@ -1,7 +1,11 @@
 # Local FalkorDB (rule 4: Docker is an accepted way to run it).
 # Bound to localhost only; no password is set, so do not expose these ports.
-# The data-volume path below is from memory of the FalkorDB image docs - verify
-# on first run (scripts/smoke_test.py + restart) that data survives a restart.
+#
+# Two ways to use this file:
+#   1. Development / rebuilding the graph from raw data:   docker compose up -d falkordb
+#   2. Try the finished app (judges): one container with FalkorDB + the web app + the published snapshot:
+#        docker compose --profile demo up --build app      then open http://127.0.0.1:8765
+#      Optional: put GROQ_API_KEY=... in .env to enable the AI agent (the plain graph audit works without it).
 services:
   falkordb:
     image: falkordb/falkordb:latest
@@ -11,6 +15,16 @@ services:
     volumes:
       - falkordb_data:/var/lib/falkordb/data
     restart: unless-stopped
+
+  app:
+    profiles: ["demo"]
+    build: .
+    ports:
+      - "127.0.0.1:8765:8765"
+    environment:
+      BEDROCK_PUBLIC: "0"          # local use: no rate limits
+      GROQ_API_KEY: "${GROQ_API_KEY:-}"
+      GROQ_MODEL: "${GROQ_MODEL:-openai/gpt-oss-120b}"
 
 volumes:
   falkordb_data:

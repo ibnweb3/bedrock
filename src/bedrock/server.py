@@ -18,6 +18,7 @@ from .audit import Auditor, apply_approved, build_proposals, extract_dois
 from .config import load_settings
 from .graph import connect
 from .llm import GroqClient
+from .ratelimit import Limits
 
 WEB = Path(__file__).resolve().parent / "web"
 STATIC = {"/": "index.html", "/index.html": "index.html", "/style.css": "style.css", "/app.js": "app.js",
@@ -26,6 +27,7 @@ MAX_BODY = 1_000_000
 CSP = ("default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
        "connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
 
+LIMITS = Limits()  # no-op unless BEDROCK_PUBLIC=1
 _graph = None
 _graph_lock = threading.Lock()
 _agent_lock = threading.Lock()  # one agent run at a time: Groq's free tier has tight token budgets
@@ -54,9 +56,12 @@ def corpus_meta() -> dict:
             papers_indexed=one("MATCH (p:Paper {full:true}) RETURN count(p)"),
             retracted_works=one("MATCH (p:Paper) WHERE p.retracted_at IS NOT NULL RETURN count(p)"),
         )
-        meta_file = Path(__file__).resolve().parents[2] / "data" / "raw" / "retraction_watch.meta.json"
-        if meta_file.exists():
-            _meta["retraction_snapshot_downloaded_utc"] = json.loads(meta_file.read_text(encoding="utf-8")).get("downloaded_at_utc")
+        root = Path(__file__).resolve().parents[2]
+        # data/raw/ exists after running the pipeline; deploy/ carries a copy for the published snapshot.
+        for meta_file in (root / "data" / "raw" / "retraction_watch.meta.json", root / "deploy" / "retraction_watch.meta.json"):
+            if meta_file.exists():
+                _meta["retraction_snapshot_downloaded_utc"] = json.loads(meta_file.read_text(encoding="utf-8")).get("downloaded_at_utc")
+                break
     return dict(_meta)
 
 
@@ -80,6 +85,15 @@ class Handler(BaseHTTPRequestHandler):
     def _json(self, code: int, obj) -> None:
         self._send(code, json.dumps(obj).encode("utf-8"), "application/json; charset=utf-8")
 
+    def _client_ip(self) -> str:
+        # Behind the host's proxy (BEDROCK_PUBLIC=1) the real client is the LAST X-Forwarded-For entry,
+        # which the proxy appended; earlier entries are client-controlled and are ignored.
+        if LIMITS.public:
+            fwd = self.headers.get("X-Forwarded-For", "")
+            if fwd.strip():
+                return fwd.split(",")[-1].strip()[:64]
+        return self.client_address[0]
+
     def do_GET(self):
         path = self.path.split("?")[0]
         if path == "/api/health":
@@ -88,7 +102,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, {"ok": True, **corpus_meta(), "agent_available": bool(st.groq_api_key),
                                         "agent_model": st.groq_model if st.groq_api_key else None})
             except Exception:  # noqa: BLE001
-                return self._json(503, {"ok": False, "error": "The graph database is not reachable. Start it with: docker compose up -d"})
+                return self._json(503, {"ok": False, "error": "The graph database is not ready (it may still be loading; wait a few seconds and reload). Running locally? Start it with: docker compose up -d"})
         name = STATIC.get(path)
         if not name:
             return self._json(404, {"error": "not found"})
@@ -113,10 +127,19 @@ class Handler(BaseHTTPRequestHandler):
         dois = extract_dois(text)
         if not dois:
             return self._json(400, {"error": "No DOIs found. Paste DOIs (like 10.1234/abc) or a reference list that contains them."})
+        ip = self._client_ip()
+        if not LIMITS.allow_audit(ip):
+            return self._json(429, {"error": "Too many requests from your address this hour. Please try again later."})
         try:
             if path == "/api/agent":
                 with _agent_lock:
-                    return self._json(200, make_agent().run(text, str(data.get("question", ""))[:500]))
+                    if LIMITS.allow_agent_model(ip):
+                        return self._json(200, make_agent().run(text, str(data.get("question", ""))[:500]))
+                    out = AuditAgent(graph(), None).run(text, "")   # plain audit: spends no model tokens
+                    out["rate_limited"] = True
+                    out["error"] = ("The AI agent's budget for this public demo is used up (per visitor or for today). "
+                                    "This is the plain graph audit; the findings are the same. Run the project locally for unlimited agent use.")
+                    return self._json(200, out)
             result = Auditor(graph()).audit(dois)
             proposals = build_proposals(result)
             if path == "/api/audit":
