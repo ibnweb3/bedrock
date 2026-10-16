@@ -115,6 +115,40 @@ class AgentTests(unittest.TestCase):
         self.assertFalse(out["verification"]["ok"])
         self.assertEqual(out["verification"]["ungrounded"], ["10.5555/invented"])
 
+    def _flagged(self):
+        from bedrock.audit import extract_dois
+        res = Auditor(self.g).audit(extract_dois(TEXT))
+        return [it["doi"] for it in res["items"] if it["status"] in ("RETRACTED", "CITES_RETRACTED", "TWO_HOP")]
+
+    def test_incomplete_summary_gets_one_retry_that_covers_everything(self):
+        flagged = self._flagged()
+        self.assertGreaterEqual(len(flagged), 2)
+        llm = FakeLLM([call("audit_bibliography"), final(f"Only {flagged[0]} matters."), final("All flagged: " + ", ".join(flagged))])
+        out = AuditAgent(self.g, llm).run(TEXT)
+        self.assertTrue(out["verification"]["completeness_retry"])
+        self.assertEqual(out["verification"]["appended_missing"], [])
+        self.assertTrue(all(d in out["answer"] for d in flagged))
+        retry_prompt = llm.seen[-1][-1]["content"]
+        self.assertIn(flagged[1], retry_prompt)                      # tells the model exactly what it left out
+
+    def test_still_incomplete_after_retry_appends_the_missing_papers_in_plain_words(self):
+        flagged = self._flagged()
+        llm = FakeLLM([call("audit_bibliography"), final(f"Only {flagged[0]} matters."), final(f"Still only {flagged[0]}.")])
+        out = AuditAgent(self.g, llm).run(TEXT)
+        self.assertEqual(out["verification"]["appended_missing"], flagged[1:])
+        self.assertIn("Also flagged by the audit", out["answer"])
+        self.assertTrue(all(d in out["answer"] for d in flagged))
+        self.assertTrue(out["verification"]["ok"])                    # appended DOIs come from the audit, so they are grounded
+
+    def test_opening_counts_come_from_the_audit_not_the_model(self):
+        flagged = self._flagged()
+        llm = FakeLLM([call("audit_bibliography"), final("Exactly 99 papers were retracted.\n\nDetails: " + ", ".join(flagged))])
+        out = AuditAgent(self.g, llm).run(TEXT)
+        first = out["answer"].splitlines()[0]
+        self.assertTrue(first.startswith("Checked 4 DOIs:"), first)
+        self.assertNotIn("99", out["answer"])
+        self.assertTrue(all(d in out["answer"] for d in flagged))
+
     def test_unknown_tool_and_bad_json_do_not_crash(self):
         llm = FakeLLM([call("delete_everything", {}), call("audit_bibliography", raw="{not json", cid="c2"),
                        final("Could not audit.")])

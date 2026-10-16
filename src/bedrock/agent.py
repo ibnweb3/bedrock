@@ -230,11 +230,51 @@ class AuditAgent:
             out["error"] = "The agent did not produce an answer in time; showing the plain audit summary."
             out["answer"] = deterministic_summary(full)
             return out
+        # Completeness: the summary must cover every flagged paper. One retry with the true counts, then a plain addendum.
+        flagged = {it["doi"]: it["status"] for it in full["items"] if it["status"] in (RETRACTED, DIRECT, TWO_HOP)}
+        missing = [d for d in flagged if d not in set(extract_dois(final))]
+        retried = False
+        if missing and not out.get("error"):
+            s = full["summary"]
+            messages.append({"role": "user", "content": (
+                f"Your answer did not mention: {', '.join(missing)}. The audit found {s[RETRACTED]} retracted, "
+                f"{s[DIRECT]} citing a retracted work directly and {s[TWO_HOP]} two-hop. Rewrite the whole answer so it covers "
+                f"every flagged DOI and its counts match these numbers. Do not call tools.")})
+            retried = True
+            try:
+                msg = self.llm.chat(messages, None)
+                again = (msg.get("content") or "").strip()
+                if again and msg.get("_finish_reason") != "length":
+                    final = again
+                    missing = [d for d in flagged if d not in set(extract_dois(final))]
+            except Exception:  # noqa: BLE001  a failed retry must never lose the first answer
+                pass
+        if missing:
+            label = {RETRACTED: "retracted", DIRECT: "cites a retracted work", TWO_HOP: "two hops from a retracted work"}
+            final += "\n\nAlso flagged by the audit (not covered above):\n" + "\n".join(f"- {d}: {label[flagged[d]]}" for d in missing)
+        final = _with_verified_counts(final, full)
         allowed = set(self.pasted_dois) | self.seen
         ungrounded = sorted(set(extract_dois(final)) - allowed)
         out.update(answer=final, source="agent", usage=dict(getattr(self.llm, "usage", {})),
-                   verification={"ok": not ungrounded, "ungrounded": ungrounded})
+                   verification={"ok": not ungrounded, "ungrounded": ungrounded, "completeness_retry": retried,
+                                 "appended_missing": missing})
         return out
+
+
+def count_line(result: dict) -> str:
+    s = result["summary"]
+    return (f"Checked {s['input']} DOIs: {s[RETRACTED]} retracted, {s[DIRECT]} cite a retracted work directly, "
+            f"{s[TWO_HOP]} reach one through an intermediate paper, {s[CLEAN]} with no exposure found, "
+            f"{s[UNKNOWN]} not in the corpus.")
+
+
+def _with_verified_counts(answer: str, result: dict) -> str:
+    """The opening counts come from the audit, never from the model (models miscount). If the model's first line is
+    only a short, DOI-free summary sentence it is replaced; otherwise the verified line is put in front."""
+    head, _, rest = answer.lstrip().partition("\n")
+    if head and len(head) < 300 and not extract_dois(head) and not head.lstrip().startswith(("-", "*", "•", "#")):
+        return count_line(result) + ("\n" + rest if rest else "")
+    return count_line(result) + "\n\n" + answer
 
 
 def _brief(name: str, result: dict) -> str:

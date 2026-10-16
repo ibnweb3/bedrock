@@ -23,3 +23,6 @@ falkordb_data/
 .dev.vars*
 !.dev.vars.example
 !.env.example
+
+# Demo video (14 MB): upload it to a video host instead of committing it
+docs/demo/*.mp4
