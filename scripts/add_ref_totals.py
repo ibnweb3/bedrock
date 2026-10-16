@@ -30,7 +30,7 @@ def main() -> int:
         with open(ROOT / "data" / "staging" / name, encoding="utf-8") as fh:
             for line in fh:
                 r = json.loads(line)
-                totals.setdefault(r["id"], len(set(r["refs"])))
+                totals.setdefault(r["id"], len(set(r["refs"]) - {r["id"]}))  # a paper does not cite itself
     rows = [{"id": k, "n": v} for k, v in totals.items()]
     t = time.time()
     for i in range(0, len(rows), 5000):

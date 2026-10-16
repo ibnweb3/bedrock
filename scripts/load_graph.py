@@ -38,7 +38,7 @@ def load_jsonl(path: Path):
                 yield json.loads(line)
 
 
-def build_dataset(limit: int = 0, max_cited: int = 500) -> dict:
+def build_dataset(limit: int = 0, max_cited: int = 500, audit_only: bool = False) -> dict:
     venues_cfg = json.loads((STAGING / "venues.json").read_text(encoding="utf-8"))
     stratum = {v["id"]: s for s, vs in venues_cfg["strata"].items() for v in vs}
     names = {v["id"]: v["name"] for vs in venues_cfg["strata"].values() for v in vs}
@@ -106,6 +106,17 @@ def build_dataset(limit: int = 0, max_cited: int = 500) -> dict:
     wrote = [(a, pid) for pid, p in papers.items() for a in p["authors"] if a in keep_authors]
     venue_ids = {p["venue_id"] for p in papers.values() if p["venue_id"]}
 
+    # Coverage figures the audit reports. Stored as properties so they survive --audit-only below.
+    indexed = Counter(pid for pid, _ in cites)
+    for pid, p in papers.items():
+        p["ref_total"], p["refs_indexed"] = len(set(p["refs"])), indexed[pid]
+    if audit_only:
+        # The audit only follows CITES between papers held in full: a cited-only stub has no outgoing
+        # edges and is never retracted, so no exposure path can run through one. Authors, co-authorship
+        # and coupling are not used by the audit either. Findings are identical; the graph is ~15x smaller.
+        stub_ids, keep_authors, wrote = set(), set(), []
+        cites = [(a, b) for a, b in cites if b in papers]
+
     stats.update({
         "papers_full": len(papers), "papers_candidate": sum(p["candidate"] for p in papers.values()),
         "papers_retracted": sum("retracted_at" in p for p in papers.values()),
@@ -148,7 +159,8 @@ def load(ds: dict, graph) -> None:
     prows = [{k: v for k, v in p.items() if k not in ("refs", "authors")} | {"full": True} for p in P.values()]
     timed("papers", len(prows), lambda b: graph.query(
         "UNWIND $rows AS r CREATE (:Paper {id:r.id, doi:r.doi, pub_date:r.pub_date, venue_id:r.venue_id, "
-        "candidate:r.candidate, full:r.full, retracted_at:r.retracted_at, retraction_reasons:r.retraction_reasons})",
+        "candidate:r.candidate, full:r.full, retracted_at:r.retracted_at, retraction_reasons:r.retraction_reasons, "
+        "ref_total:r.ref_total, refs_indexed:r.refs_indexed})",
         {"rows": b}), prows, 2000)
 
     timed("stubs", len(ds["stubs"]), lambda b: graph.query(
@@ -197,10 +209,12 @@ def main() -> int:
     ap.add_argument("--graph", default="", help="graph name (default FALKORDB_GRAPH)")
     ap.add_argument("--limit", type=int, default=0, help="test mode: only the first N candidates")
     ap.add_argument("--max-cited", type=int, default=500, help="drop stub refs cited by more papers than this")
+    ap.add_argument("--audit-only", action="store_true",
+                    help="slim graph for the audit app: papers + CITES between held papers + venues only")
     args = ap.parse_args()
 
     t0 = time.time()
-    ds = build_dataset(args.limit, args.max_cited)
+    ds = build_dataset(args.limit, args.max_cited, args.audit_only)
     print("dataset built in %.0fs" % (time.time() - t0))
     for k, v in ds["stats"].items():
         print(f"  {k:<28}{v:>12,}")

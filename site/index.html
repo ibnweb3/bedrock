@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="Bedrock traces every citation path from your bibliography to retracted research, with the exact chain and the retraction record. Built on FalkorDB for Graph Hacks 2026.">
+<title>Bedrock - bibliography provenance audit</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=JetBrains+Mono:wght@400;500&family=Public+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout concept: one idea carries the page, the citation chain. It opens the page as the hero, returns as
+   the finding cards, and the sections read top to bottom like following a path from a source to its origin.
+   Palette: cool paper and blue-black ink, one teal for interaction, and a red used only for "retracted". */
+:root {
+  --paper: #f3f6f8;
+  --surface: #ffffff;
+  --ink: #0d1b24;
+  --ink-2: #44566a;
+  --line: #d3dde4;
+  --teal: #0b6e8f;
+  --teal-ink: #ffffff;
+  --alert: #b3261e;
+  --alert-bg: #fbe9e7;
+  --warn: #8a5a00;
+  --warn-bg: #fdf1d6;
+  --ok: #1b6a3d;
+  --ok-bg: #e2f3e8;
+  --node: #ecf3f7;
+  --focus: rgba(11, 110, 143, .45);
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body: "Public Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0a1319; --surface: #111d25; --ink: #e7eef2; --ink-2: #9db0bf; --line: #24343f;
+    --teal: #62c3e8; --teal-ink: #06141b; --alert: #ff8f80; --alert-bg: #3a1b18;
+    --warn: #f0c75e; --warn-bg: #352c0e; --ok: #7ed7a0; --ok-bg: #12301f; --node: #16252f; --focus: rgba(98, 195, 232, .5);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0a1319; --surface: #111d25; --ink: #e7eef2; --ink-2: #9db0bf; --line: #24343f;
+  --teal: #62c3e8; --teal-ink: #06141b; --alert: #ff8f80; --alert-bg: #3a1b18;
+  --warn: #f0c75e; --warn-bg: #352c0e; --ok: #7ed7a0; --ok-bg: #12301f; --node: #16252f; --focus: rgba(98, 195, 232, .5);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+body {
+  margin: 0; background: var(--paper); color: var(--ink);
+  font: 400 1.0625rem/1.6 var(--body);
+  -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+}
+::selection { background: var(--teal); color: var(--teal-ink); }
+a { color: var(--teal); text-underline-offset: 3px; }
+a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus); border-radius: 6px; }
+.wrap { width: min(1080px, 100%); margin-inline: auto; padding-inline: max(20px, env(safe-area-inset-left, 0px)) max(20px, env(safe-area-inset-right, 0px)); }
+section { padding-block: clamp(44px, 7vw, 88px); }
+h1, h2, h3 { font-family: var(--display); font-weight: 700; line-height: 1.08; letter-spacing: -.015em; margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(2.5rem, 6.2vw, 4.6rem); }
+h2 { font-size: clamp(1.7rem, 3.6vw, 2.5rem); }
+h3 { font-size: 1.15rem; line-height: 1.25; letter-spacing: -.005em; }
+p { margin: 0; }
+.lede { font-size: clamp(1.1rem, 1.8vw, 1.3rem); color: var(--ink-2); max-width: 44ch; }
+.eyebrow { font: 500 .8rem/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); margin-bottom: 14px; display: block; }
+.mono { font-family: var(--mono); }
+
+/* header */
+header.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: color-mix(in srgb, var(--paper) 88%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+header.top .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-block: 12px; }
+.brand { display: flex; align-items: center; gap: 10px; font: 700 1.2rem/1 var(--display); color: var(--ink); text-decoration: none; }
+.brand svg { width: 28px; height: 28px; flex: none; }
+nav { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+nav a { color: var(--ink-2); text-decoration: none; padding: 8px 10px; border-radius: 8px; font-size: .95rem; min-height: 40px; display: inline-flex; align-items: center; }
+nav a.cta { color: var(--teal-ink); background: var(--teal); font-weight: 600; }
+@media (hover: hover) { nav a:hover { color: var(--ink); background: var(--node); } nav a.cta:hover { background: var(--teal); filter: brightness(1.08); } }
+@media (max-width: 720px) { nav a.hide-s { display: none; } }
+
+/* hero */
+.hero { padding-block: clamp(36px, 6vw, 72px) clamp(28px, 4vw, 48px); }
+.hero h1 { max-width: 16ch; }
+.hero .lede { margin-top: 22px; }
+.actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; align-items: center; }
+.btn { font: 600 1rem/1 var(--body); display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 22px; border-radius: 10px; text-decoration: none; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; user-select: none; -webkit-user-select: none; transition: transform 120ms ease, background-color 120ms ease; }
+.btn:active { transform: scale(.97); }
+.btn.primary { background: var(--teal); color: var(--teal-ink); border-color: var(--teal); }
+.btn[aria-disabled="true"] { opacity: .72; cursor: default; }
+@media (hover: hover) { .btn:hover:not([aria-disabled="true"]) { background: var(--node); } .btn.primary:hover:not([aria-disabled="true"]) { background: var(--teal); filter: brightness(1.08); } }
+.note { font-size: .92rem; color: var(--ink-2); }
+
+/* the chain */
+.chain { list-style: none; margin: clamp(34px, 5vw, 56px) 0 0; padding: 0; display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; align-items: stretch; gap: 0; }
+.chain .node { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.chain .node .tag { font: 500 .75rem/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
+.chain .node .doi { font: 500 .84rem/1.4 var(--mono); overflow-wrap: anywhere; }
+.chain .node .meta { font-size: .88rem; color: var(--ink-2); }
+.chain .node.end { background: var(--alert-bg); border-color: var(--alert); }
+.chain .node.end .tag { color: var(--alert); font-weight: 500; }
+.chain .link { display: flex; align-items: center; justify-content: center; min-width: 64px; position: relative; color: var(--ink-2); font: 500 .8rem/1 var(--mono); }
+.chain .link::before { content: ""; position: absolute; left: 8px; right: 14px; top: 50%; height: 2px; background: currentColor; opacity: .55; }
+.chain .link::after { content: ""; position: absolute; right: 8px; top: calc(50% - 5px); border-left: 8px solid currentColor; border-top: 5px solid transparent; border-bottom: 5px solid transparent; opacity: .7; }
+.chain .link span { position: relative; background: var(--paper); padding: 0 6px; top: -14px; }
+.caption { margin-top: 16px; font-size: .92rem; color: var(--ink-2); max-width: 78ch; }
+@media (max-width: 820px) {
+  .chain { grid-template-columns: 1fr; }
+  .chain .link { min-height: 56px; min-width: 0; }
+  .chain .link::before { left: 50%; right: auto; top: 6px; bottom: 14px; width: 2px; height: auto; }
+  .chain .link::after { right: auto; left: calc(50% - 5px); top: auto; bottom: 6px; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 8px solid currentColor; border-bottom: 0; }
+  .chain .link span { top: 0; left: 24px; position: absolute; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .chain .node, .chain .link { animation: rise 520ms cubic-bezier(.2, .7, .2, 1) both; }
+  .chain > :nth-child(2) { animation-delay: 160ms; } .chain > :nth-child(3) { animation-delay: 320ms; }
+  .chain > :nth-child(4) { animation-delay: 480ms; } .chain > :nth-child(5) { animation-delay: 640ms; }
+  .chain .node.end { animation: rise 520ms cubic-bezier(.2, .7, .2, 1) 640ms both, flag 1400ms ease-out 1200ms 1; }
+  @keyframes rise { from { transform: translateY(10px); } to { transform: none; } } /* never starts invisible: content stays readable if animation is paused */
+  @keyframes flag { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--alert) 55%, transparent); } 100% { box-shadow: 0 0 0 14px transparent; } }
+}
+
+/* facts */
+.facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; border-block: 1px solid var(--line); margin-top: clamp(30px, 5vw, 56px); }
+.fact { padding: 22px 22px 22px 0; min-width: 0; }
+.fact + .fact { padding-left: 22px; border-left: 1px solid var(--line); }
+.fact b { display: block; font: 700 clamp(1.9rem, 4vw, 2.8rem)/1 var(--display); font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.fact span { display: block; margin-top: 8px; color: var(--ink-2); font-size: .95rem; }
+@media (max-width: 720px) { .facts { grid-template-columns: 1fr; } .fact, .fact + .fact { padding: 18px 0; border-left: 0; } .fact + .fact { border-top: 1px solid var(--line); } }
+
+/* sequence */
+.steps { list-style: none; counter-reset: s; margin: 34px 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
+.steps li { counter-increment: s; min-width: 0; }
+.steps li::before { content: counter(s); display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--teal); color: var(--teal-ink); font: 700 1rem/1 var(--display); margin-bottom: 14px; }
+.steps h3 { margin-bottom: 8px; }
+.steps p { color: var(--ink-2); font-size: 1rem; }
+@media (max-width: 820px) { .steps { grid-template-columns: 1fr; gap: 24px; } }
+
+/* sample findings + approval */
+.demo { display: grid; grid-template-columns: 1.25fr 1fr; gap: 24px; margin-top: 30px; align-items: start; }
+@media (max-width: 920px) { .demo { grid-template-columns: 1fr; } }
+.finding { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; display: grid; gap: 8px; min-width: 0; }
+.finding + .finding { margin-top: 12px; }
+.finding .head { display: flex; flex-wrap: wrap; gap: 10px; align-items: baseline; }
+.badge { font: 600 .8rem/1 var(--body); padding: 4px 8px; border-radius: 6px; }
+.b-ret { color: var(--alert); background: var(--alert-bg); }
+.b-dir { color: var(--warn); background: var(--warn-bg); }
+.b-two { color: var(--warn); background: var(--warn-bg); }
+.b-ok { color: var(--ok); background: var(--ok-bg); }
+.finding .doi { font: 500 .93rem/1.3 var(--mono); overflow-wrap: anywhere; }
+.finding .meta { color: var(--ink-2); font-size: .93rem; }
+.path { font: 400 .85rem/1.5 var(--mono); color: var(--ink-2); overflow-wrap: anywhere; }
+.path em { font-style: normal; color: var(--alert); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 0; padding: 0; }
+.chips li { font-size: .82rem; background: var(--node); color: var(--ink-2); border-radius: 6px; padding: 3px 8px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; position: sticky; top: 76px; }
+.panel h3 { margin-bottom: 4px; }
+.panel .note { margin-bottom: 10px; }
+.props { list-style: none; margin: 0; padding: 0; }
+.props li { display: flex; gap: 12px; align-items: flex-start; padding: 12px 4px; border-top: 1px solid var(--line); }
+.props li:first-child { border-top: 0; }
+.props input { width: 22px; height: 22px; margin-top: 2px; flex: none; accent-color: var(--teal); }
+.props label { cursor: pointer; flex: 1; font-size: .98rem; min-width: 0; overflow-wrap: anywhere; }
+.props .k { display: block; font: 500 .75rem/1.4 var(--mono); letter-spacing: .05em; text-transform: uppercase; color: var(--ink-2); }
+.result { margin-top: 14px; padding: 14px; background: var(--node); border-radius: 10px; }
+.result .count { font: 600 .95rem/1.3 var(--body); margin-bottom: 8px; font-variant-numeric: tabular-nums; }
+.result ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.result li { font: 400 .82rem/1.4 var(--mono); overflow-wrap: anywhere; }
+.result li.gone { text-decoration: line-through; color: var(--ink-2); }
+.result li.add { color: var(--ok); }
+
+/* safety list */
+.grid2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px 40px; margin-top: 30px; }
+@media (max-width: 720px) { .grid2 { grid-template-columns: 1fr; } }
+.grid2 > div { min-width: 0; padding-top: 14px; border-top: 2px solid var(--ink); }
+.grid2 h3 { margin-bottom: 8px; }
+.grid2 p { color: var(--ink-2); }
+
+/* evidence */
+.evidence { margin-top: 28px; overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; min-width: 560px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 11px 12px 11px 0; border-bottom: 1px solid var(--line); vertical-align: middle; font-size: .98rem; }
+th { font: 500 .78rem/1.2 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
+td.n, th.n { text-align: right; padding-right: 14px; white-space: nowrap; }
+.bar { height: 14px; border-radius: 3px; background: var(--node); position: relative; min-width: 120px; }
+.bar i { position: absolute; inset: 0 auto 0 0; background: var(--teal); border-radius: 3px; }
+.bar i.rand { background: var(--ink-2); opacity: .55; }
+tr.hl td { font-weight: 600; }
+.verdict { margin-top: 22px; max-width: 70ch; }
+.verdict strong { color: var(--ink); }
+
+/* try it */
+.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 30px; }
+@media (max-width: 900px) { .cards { grid-template-columns: 1fr; } }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.card p { color: var(--ink-2); font-size: 1rem; flex: 1; }
+.card .btn { align-self: flex-start; }
+
+footer { border-top: 1px solid var(--line); padding-block: 32px 48px; color: var(--ink-2); font-size: .92rem; }
+footer .wrap { display: grid; gap: 10px; }
+footer p { max-width: 80ch; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#top" aria-label="Bedrock, back to the top">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="var(--teal)"/><path d="M7 21h18v3H7zM9 15h14v3H9zM12 9h8v3h-8z" fill="var(--teal-ink)"/></svg>
+      Bedrock
+    </a>
+    <nav aria-label="Sections">
+      <a class="hide-s" href="#how">How it works</a>
+      <a class="hide-s" href="#findings">Example</a>
+      <a class="hide-s" href="#tested">What we tested</a>
+      <a class="cta" href="#try">Try it</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero" aria-labelledby="h1">
+    <div class="wrap">
+      <span class="eyebrow">Graph Hacks 2026 &middot; Track 01 &middot; built on FalkorDB</span>
+      <h1 id="h1">What is your bibliography standing on?</h1>
+      <p class="lede">Paste your references. Bedrock follows every citation path from your sources to retracted research, and shows you the chain.</p>
+      <div class="actions">
+        <a class="btn primary" id="cta-live" href="#try" data-config="live">Open the live audit</a>
+        <a class="btn" id="cta-video" href="#try" data-config="video">Watch the 3-minute demo</a>
+        <a class="btn" href="https://github.com/ibnweb3/bedrock">Read the code</a>
+      </div>
+
+      <ol class="chain" aria-label="Example citation path from a reference to a retracted work">
+        <li class="node"><span class="tag">Your reference</span><span class="doi">10.1016/j.neubiorev.2019.09.040</span><span class="meta">Published 2019, a real paper in the audited corpus</span></li>
+        <li class="link" aria-hidden="true"><span>cites</span></li>
+        <li class="node"><span class="tag">Intermediate source</span><span class="doi">10.1111/ejn.13603</span><span class="meta">Not retracted, so a reference manager stays quiet</span></li>
+        <li class="link" aria-hidden="true"><span>cites</span></li>
+        <li class="node end"><span class="tag">Retracted 2014-10-01</span><span class="doi">10.1016/j.jpsychires.2014.06.018</span><span class="meta">Retraction Watch record found</span></li>
+      </ol>
+      <p class="caption">This path comes from the audited corpus. Reference managers flag a paper that cites a retracted one directly. Bedrock also finds the ones that reach it through another source.</p>
+
+      <div class="facts">
+        <div class="fact"><b>61,299</b><span>retracted works indexed, from the Retraction Watch database</span></div>
+        <div class="fact"><b>251,645</b><span>articles from 213 journals checked for exposure</span></div>
+        <div class="fact"><b>7,162</b><span>of them (2.8%) cite a work that has since been retracted</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="how" aria-labelledby="h-how">
+    <div class="wrap">
+      <span class="eyebrow">How it works</span>
+      <h2 id="h-how">From a pasted list to a decision you control</h2>
+      <ol class="steps">
+        <li><h3>Paste your references</h3><p>Any text that contains DOIs works, up to 300 at a time. Bedrock finds them and ignores the rest.</p></li>
+        <li><h3>The graph finds the paths</h3><p>FalkorDB follows citations up to two hops and returns every path that reaches a retracted work, with the retraction date and the recorded reasons. 150 references take about 0.05 seconds.</p></li>
+        <li><h3>The agent explains, you decide</h3><p>A language model summarizes the findings and proposes edits. It can only read. Nothing changes until you approve each action.</p></li>
+      </ol>
+    </div>
+  </section>
+
+  <section id="findings" aria-labelledby="h-find">
+    <div class="wrap">
+      <span class="eyebrow">Example output</span>
+      <h2 id="h-find">What a finding looks like</h2>
+      <p class="lede" style="margin-top:14px">These cards use real DOIs from the audited corpus. Try the approval panel: it shows how the revised list changes only for the actions you accept.</p>
+      <div class="demo">
+        <div>
+          <article class="finding">
+            <div class="head"><span class="badge b-ret">Retracted</span><span class="doi">10.1186/s13046-018-0845-9</span></div>
+            <p class="meta">Retracted 2023-04-06 &middot; cited by 12 indexed papers</p>
+            <ul class="chips" aria-label="Recorded reasons"><li>Duplication of/in image</li><li>Investigation by third party</li><li>Paper mill</li></ul>
+          </article>
+          <article class="finding">
+            <div class="head"><span class="badge b-dir">Cites a retracted work</span><span class="doi">10.1016/j.phrs.2019.104313</span></div>
+            <p class="path">10.1016/j.phrs.2019.104313 &rarr; <em>10.1186/1476-4598-12-147</em> (retracted 2022-12-15)</p>
+            <p class="meta">Checked 34 of 48 references</p>
+          </article>
+          <article class="finding">
+            <div class="head"><span class="badge b-two">Two hops from a retracted work</span><span class="doi">10.1016/j.jpdc.2021.07.009</span></div>
+            <p class="path">10.1016/j.jpdc.2021.07.009 &rarr; 10.1016/j.jpdc.2017.05.009 &rarr; <em>10.1016/j.procs.2014.05.039</em> (retracted 2014-06-06)</p>
+            <p class="meta">Checked 49 of 112 references</p>
+          </article>
+          <article class="finding">
+            <div class="head"><span class="badge b-ok">No exposure found</span><span class="doi">10.1111/iej.13488</span></div>
+            <p class="meta">Nothing found within two hops in the indexed corpus. This is not a certification that the paper is sound.</p>
+          </article>
+        </div>
+
+        <aside class="panel" aria-labelledby="h-prop">
+          <h3 id="h-prop">Proposed actions</h3>
+          <p class="note">Example. Nothing is applied until you tick it.</p>
+          <ul class="props" id="props">
+            <li><input type="checkbox" id="p1" data-remove="10.1186/s13046-018-0845-9"><label for="p1"><span class="k">Remove or replace</span>10.1186/s13046-018-0845-9, retracted 2023-04-06</label></li>
+            <li><input type="checkbox" id="p2" data-add="10.1007/s00018-017-2595-9"><label for="p2"><span class="k">Suggested alternative</span>10.1007/s00018-017-2595-9, co-cited with it by indexed papers (fit not verified)</label></li>
+            <li><input type="checkbox" id="p3" data-note="1"><label for="p3"><span class="k">Manual review</span>10.1016/j.phrs.2019.104313 depends on retracted work. A prompt to read it, not a finding that it is wrong.</label></li>
+          </ul>
+          <div class="result" aria-live="polite">
+            <p class="count" id="count">Revised list: 4 references, 0 changes</p>
+            <ul id="revised"></ul>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <section id="safe" aria-labelledby="h-safe">
+    <div class="wrap">
+      <span class="eyebrow">Built to be checked</span>
+      <h2 id="h-safe">The agent is on a short leash</h2>
+      <div class="grid2">
+        <div><h3>It can read, never write</h3><p>The agent has three tools, all read-only. None of them changes a bibliography. Edits happen only when you approve them on the page, and the server applies only the actions it proposed itself.</p></div>
+        <div><h3>Every DOI is checked against the data</h3><p>After the agent answers, each DOI it mentions is compared with what the tools returned. An invented or mistyped one shows up as a warning.</p></div>
+        <div><h3>The findings do not depend on the model</h3><p>The finding cards come straight from graph queries. If the model is slow, rate-limited or wrong, you still get the full audit.</p></div>
+        <div><h3>It never accuses people</h3><p>Findings concern papers and citation paths. The public demo holds no author data. A flag is a prompt for human review.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="tested" aria-labelledby="h-test">
+    <div class="wrap">
+      <span class="eyebrow">What we tested</span>
+      <h2 id="h-test">We tried to predict retractions. It did not work, so Bedrock does not claim to.</h2>
+      <p class="lede" style="margin-top:14px">Before looking at any result, we wrote down the success test: a graph method had to beat the best simple baseline, and the gap had to survive removing the largest journal. We then ran it on 134,798 articles with 140 later retractions.</p>
+      <div class="evidence">
+        <table>
+          <caption class="note" style="text-align:left;caption-side:top;padding-bottom:10px">Average precision at the 2020-12-31 cutoff, scale 0 to 0.008. Higher is better.</caption>
+          <thead><tr><th>Method</th><th>Score</th><th class="n">Average precision</th><th class="n">Top 1% recall</th></tr></thead>
+          <tbody>
+            <tr><td>Random ranking</td><td><div class="bar" role="img" aria-label="0.0012 out of 0.008"><i class="rand" style="width:15%"></i></div></td><td class="n">0.0012</td><td class="n">1.6%</td></tr>
+            <tr><td>Journal's past retraction rate</td><td><div class="bar" role="img" aria-label="0.0066 out of 0.008"><i style="width:82.5%"></i></div></td><td class="n">0.0066</td><td class="n">0%</td></tr>
+            <tr><td>Cites a retracted work (one hop)</td><td><div class="bar" role="img" aria-label="0.0066 out of 0.008"><i style="width:82.5%"></i></div></td><td class="n">0.0066</td><td class="n">10.0%</td></tr>
+            <tr><td>Two citation hops</td><td><div class="bar" role="img" aria-label="0.0021 out of 0.008"><i style="width:26.3%"></i></div></td><td class="n">0.0021</td><td class="n">7.3%</td></tr>
+            <tr><td>All graph signals combined</td><td><div class="bar" role="img" aria-label="0.0041 out of 0.008"><i style="width:51.3%"></i></div></td><td class="n">0.0041</td><td class="n">7.1%</td></tr>
+            <tr class="hl"><td>Journal history plus graph</td><td><div class="bar" role="img" aria-label="0.0074 out of 0.008"><i style="width:92.5%"></i></div></td><td class="n">0.0074</td><td class="n">15.7%</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="verdict"><strong>The result: no reliable improvement.</strong> The best combination beat the journal baseline by a margin well inside the uncertainty, the multi-hop signals did not beat their one-hop versions, and most of the 140 retractions came from a handful of journals. One signal did stand out: a paper that cites an already retracted work was 5 to 12 times more likely than average to be retracted later, depending on the cutoff. That is a lookup, so Bedrock reports exact provenance instead of forecasts. Method, intervals and caveats are in <a href="https://github.com/ibnweb3/bedrock/blob/main/docs/RESULTS.md">docs/RESULTS.md</a>.</p>
+    </div>
+  </section>
+
+  <section id="try" aria-labelledby="h-try">
+    <div class="wrap">
+      <span class="eyebrow">Try it</span>
+      <h2 id="h-try">Three ways in</h2>
+      <div class="cards">
+        <div class="card"><h3>Live audit</h3><p>Paste a reference list and get findings, paths and proposed edits in seconds.</p><a class="btn primary" id="card-live" href="#try" data-config="live" aria-disabled="true">Link added at launch</a></div>
+        <div class="card"><h3>Demo video</h3><p>A three-minute walk through an audit, the approval step and the backtest result.</p><a class="btn" id="card-video" href="#try" data-config="video" aria-disabled="true">Link added at launch</a></div>
+        <div class="card"><h3>Source and setup</h3><p>The full pipeline, the Cypher queries, the tests and the decision log, with setup steps in the README.</p><a class="btn" href="https://github.com/ibnweb3/bedrock#readme">Open the repository</a></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>Built for Graph Hacks: Context for AI Agents (WeMakeDevs and FalkorDB), Track 01, Agents That Act on Connected Data.</p>
+    <p>Data: retractions from the Retraction Watch database, distributed by Crossref; citations from OpenAlex (CC0). Graph engine: FalkorDB.</p>
+    <p>AI use: the code was written with Claude Code. The agent runs on Groq with the openai/gpt-oss-120b model.</p>
+  </div>
+</footer>
+
+<script>
+"use strict";
+/* Set these at launch; until then the buttons say so instead of pointing nowhere. */
+const LINKS = { live: "", video: "" };
+
+document.querySelectorAll("[data-config]").forEach((a) => {
+  const url = LINKS[a.dataset.config];
+  if (url) { a.href = url; a.removeAttribute("aria-disabled"); a.target = "_blank"; a.rel = "noopener"; if (a.id.startsWith("card")) a.textContent = a.dataset.config === "live" ? "Open the live audit" : "Watch the demo"; }
+});
+document.querySelectorAll("#cta-live, #cta-video").forEach((a) => {
+  if (!LINKS[a.dataset.config]) a.setAttribute("href", "#try");
+});
+
+/* Approval example: the revised list changes only for ticked actions. */
+const BASE = ["10.1155/2021/6178569", "10.1186/s13046-018-0845-9", "10.1016/j.phrs.2019.104313", "10.1111/iej.13488"];
+const props = document.getElementById("props");
+const list = document.getElementById("revised");
+const count = document.getElementById("count");
+function renderList() {
+  const removed = new Set(), added = [];
+  let changes = 0;
+  props.querySelectorAll("input:checked").forEach((c) => {
+    if (c.dataset.remove) { removed.add(c.dataset.remove); changes++; }
+    if (c.dataset.add) { added.push(c.dataset.add); changes++; }
+  });
+  list.replaceChildren();
+  BASE.forEach((d) => { const li = document.createElement("li"); li.textContent = d; if (removed.has(d)) li.className = "gone"; list.append(li); });
+  added.forEach((d) => { const li = document.createElement("li"); li.textContent = "+ " + d; li.className = "add"; list.append(li); });
+  const size = BASE.length - removed.size + added.length;
+  count.textContent = `Revised list: ${size} references, ${changes} change${changes === 1 ? "" : "s"}`;
+}
+props.addEventListener("change", renderList);
+renderList();
+</script>
+</body>
+</html>

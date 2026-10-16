@@ -75,6 +75,11 @@ class Auditor:
             for i, xid, xdoi, rid, rdoi, rat, reasons in self._run("22_two_hop", {"ids": ids, "limit": 5000}):
                 two[i].append({"via": {"id": xid, "doi": xdoi},
                                "retracted": {"id": rid, "doi": rdoi, "retracted_at": fmt_date(rat), "reasons": list(reasons or [])}})
+        # Deterministic order (the database returns ties in arbitrary order): the same input must give the same output.
+        for lst in direct.values():
+            lst.sort(key=lambda d: (d["retracted_at"] or "", d["doi"] or d["id"]))
+        for lst in two.values():
+            lst.sort(key=lambda t: (t["via"]["doi"] or t["via"]["id"], t["retracted"]["doi"] or t["retracted"]["id"]))
         retracted_ids = [v["id"] for v in info.values() if v and v["retracted_at"]]
         citers = {i: n for i, n in self._run("30_citers", {"ids": retracted_ids})} if retracted_ids else {}
         vids = sorted({v["venue"]["id"] for v in info.values() if v and v["venue"]["id"]})
