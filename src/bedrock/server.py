@@ -24,7 +24,7 @@ WEB = Path(__file__).resolve().parent / "web"
 STATIC = {"/": "index.html", "/index.html": "index.html", "/style.css": "style.css", "/app.js": "app.js",
           "/favicon.svg": "favicon.svg", "/examples.json": "examples.json"}
 MAX_BODY = 1_000_000
-CSP = ("default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
+CSP = ("default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; "
        "connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
 
 LIMITS = Limits()  # no-op unless BEDROCK_PUBLIC=1
