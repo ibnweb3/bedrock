@@ -320,7 +320,7 @@ html.js .hero .wrap > h1 { animation-delay: 70ms; } html.js .hero .wrap > .lede 
       <h2 id="h-how">From a pasted list to a decision you control</h2>
       <ol class="steps">
         <li><h3>Paste your references</h3><p>Any text that contains DOIs works, up to 300 at a time. Bedrock finds them and ignores the rest.</p></li>
-        <li><h3>The graph finds the paths</h3><p>FalkorDB follows citations up to two hops and returns every path that reaches a retracted work, with the retraction date and the recorded reasons. 150 references take about 0.05 seconds.</p></li>
+        <li><h3>The graph finds the paths</h3><p>FalkorDB follows citations up to two hops and returns every path that reaches a retracted work, with the retraction date and the recorded reasons. In our tests, 150 references took between 0.15 and 0.4 seconds.</p></li>
         <li><h3>The agent explains, you decide</h3><p>A language model summarizes the findings and proposes edits. It can only read. Nothing changes until you approve each action.</p></li>
       </ol>
     </div>
@@ -432,7 +432,7 @@ html.js .hero .wrap > h1 { animation-delay: 70ms; } html.js .hero .wrap > .lede 
 <script>
 "use strict";
 /* Set these at launch; until then the buttons say so instead of pointing nowhere. */
-const LINKS = { live: "https://modify-flyer-jill-charm.trycloudflare.com", video: "" };
+const LINKS = { live: "https://modify-flyer-jill-charm.trycloudflare.com", video: "https://youtu.be/bqgNoxluHjw" };
 
 document.querySelectorAll("[data-config]").forEach((a) => {
   const url = LINKS[a.dataset.config];
