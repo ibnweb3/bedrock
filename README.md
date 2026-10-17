@@ -12,7 +12,7 @@ It makes **exact statements about an indexed corpus, not predictions**: a backte
 signals predict future retractions found no reliable improvement over journal history
 ([`docs/RESULTS.md`](docs/RESULTS.md)), so Bedrock does not claim to forecast anything.
 
-**Build story (blog post):** https://bedrock-audit.ibnweb3lab.workers.dev/blog/
+**Build story (blog post):** https://bedrock-audit.ibnweb3lab.workers.dev/blog/ (also on DEV: https://dev.to/ibnweb3/the-retraction-two-citations-back-building-a-citation-path-audit-on-falkordb-3cjk)
 
 **Try it in one command** (needs Docker; details in [`docs/DEPLOY.md`](docs/DEPLOY.md)):
 
