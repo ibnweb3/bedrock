@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>The retraction two citations back - Bedrock write-up</title>
+<title>Your bibliography might be standing on a retracted paper - Bedrock write-up</title>
 <meta name="description" content="How I built Bedrock in three days on FalkorDB: a citation-graph audit that finds the retracted papers your bibliography stands on, what the 59-second query taught me, and the prediction test that failed.">
 <meta property="og:type" content="article">
-<meta property="og:title" content="The retraction two citations back">
-<meta property="og:description" content="Building a citation-path audit on FalkorDB for Graph Hacks 2026: the graph, the 59-second query, an AI agent kept on a short leash, and a prediction test that failed.">
+<meta property="og:title" content="Your bibliography might be standing on a retracted paper">
+<meta property="og:description" content="I tried to predict retracted papers. I failed, and built something better. A three-day build on FalkorDB for Graph Hacks 2026.">
 <meta property="og:image" content="https://bedrock-audit.ibnweb3lab.workers.dev/strata.jpg">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="../favicon.svg" type="image/svg+xml">
@@ -61,7 +61,7 @@ nav a.cta { color: var(--teal-ink); background: var(--teal); font-weight: 600; }
 .hero::after { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; background: linear-gradient(to bottom, color-mix(in srgb, var(--paper) 70%, transparent), color-mix(in srgb, var(--paper) 88%, transparent) 60%, var(--paper)); }
 @keyframes drift { from { transform: scale(1.04) translate3d(-1%, 0, 0); } to { transform: scale(1.12) translate3d(1.5%, 1.5%, 0); } }
 .eyebrow { font: 500 .75rem/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 18px; }
-h1 { font: 600 clamp(2.3rem, 6vw, 4.2rem)/1.04 var(--text); letter-spacing: -.04em; margin: 0; max-width: 18ch; text-wrap: balance; }
+h1 { font: 600 clamp(2.2rem, 5.6vw, 4rem)/1.05 var(--text); letter-spacing: -.04em; margin: 0; max-width: 20ch; text-wrap: balance; }
 .dek { font-size: clamp(1.1rem, 2vw, 1.35rem); line-height: 1.55; color: var(--ink-2); max-width: 46ch; margin: 22px 0 0; }
 .byline { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 28px; font: 500 .8rem/1.4 var(--mono); color: var(--muted); }
 .byline b { color: var(--ink); font-weight: 600; }
@@ -159,8 +159,8 @@ html.js .rv.in { opacity: 1; transform: none; }
   <section class="hero">
     <div class="wrap">
       <span class="eyebrow">Graph Hacks 2026 &middot; Track 01 &middot; a build write-up</span>
-      <h1>The retraction two citations back</h1>
-      <p class="dek">How I built a citation-path audit on FalkorDB in three days, what a 59-second query taught me, and why I'm proudest of a test that failed.</p>
+      <h1>Your bibliography might be standing on a retracted paper</h1>
+      <p class="dek">I tried to predict retracted papers. I failed, and built something better.</p>
       <div class="byline"><span><b>ibnweb3</b></span><span>Oct 17, 2026</span><span>8 min read</span></div>
       <div class="keys">
         <div><b>312,108</b><span>papers in the graph</span></div>

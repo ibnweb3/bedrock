@@ -1,3 +1,5 @@
+**I tried to predict retracted papers. I failed, and built something better.**
+
 *Originally published at [bedrock-audit.ibnweb3lab.workers.dev/blog](https://bedrock-audit.ibnweb3lab.workers.dev/blog/). Built for the Graph Hacks hackathon (WeMakeDevs x FalkorDB), Track 01.*
 
 Imagine you've spent a year on a literature review. Every source on your list checks out, because your reference manager flags nothing. But two steps back, one of those sources leans on a paper that was retracted years ago, and no tool you use was ever going to tell you.
