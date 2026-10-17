@@ -174,6 +174,12 @@ calling). It has three read-only tools, cannot change anything, and its answer i
 the findings themselves are computed by Cypher queries in FalkorDB, not by the model. Without a Groq key the
 product works as a plain graph audit.
 
+## License
+
+The code in this repository is released under the [MIT License](LICENSE). The data keeps its own terms: OpenAlex metadata is CC0, and the
+Retraction Watch database (via Crossref) is public but states no licence, so the published snapshot in `deploy/` carries it with attribution only.
+The hero photo on the product page is CC0 (Brigitte Werner, Wikimedia Commons).
+
 ## Rules compliance
 
 Tracked in [`docs/RULES_CHECKLIST.md`](docs/RULES_CHECKLIST.md).

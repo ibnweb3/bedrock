@@ -20,7 +20,7 @@ Legend: [x] true in the repo today, [ ] still to do at submission, n/a not a req
 | 12 | Participant understands the code and can explain the graph model, queries, architecture and decisions | `docs/WALKTHROUGH.md` (read it before submitting), `docs/DECISIONS.md` | [ ] read the walkthrough |
 | 13 | Not entirely AI-generated; meaningful contribution, verification, understanding | Participant chose the idea, set the rules, approved the backtest design, decided the pivot from prediction to audit, chose the LLM provider, approved each deployment step; log in `docs/DECISIONS.md` | [x] |
 | 14 | Prize pool | iPhone 18 Pro goes to the best Track 01 project | n/a |
-| 15 | IP belongs to the participant | n/a (see note on licence below) | n/a |
+| 15 | IP belongs to the participant | n/a; the code is released under MIT (`LICENSE`) | n/a |
 | 16-18 | Respect, no harassment or plagiarism or manipulation, no rule-breaking | Honest numbers only (a failed prediction test is reported as failed); sources cited; no named researchers; findings are prompts for review, never accusations | [x] |
 
 ## Rule 10 deliverables
@@ -35,6 +35,6 @@ Legend: [x] true in the repo today, [ ] still to do at submission, n/a not a req
 ## Things to know before submitting
 
 - **Data caveat.** The Retraction Watch database is public but its repository states no licence. The published snapshot (`deploy/`) contains retracted DOIs, dates and reasons from it, with attribution in the README. If the organisers or Retraction Watch object, the snapshot can be removed and rebuilt locally from the pipeline.
-- **No LICENSE file.** The repo has none, which means default copyright applies. Rule 15 does not require one. Adding MIT is the participant's decision.
+- **Licence.** The code is MIT (`LICENSE`, copyright "2026 ibnweb3"; change the name there if you want your real name). The data keeps its own terms (see the README "License" section).
 - **Live demo availability.** The live address points at the author's PC through a Cloudflare quick tunnel; it only works while the PC and Docker are running. The one-command local setup is the fallback.
 - **Rule changes.** The page says rules may be updated. Re-read it on Oct 18 before submitting.
