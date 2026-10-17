@@ -54,7 +54,7 @@ docker compose up -d falkordb        # FalkorDB on 127.0.0.1:6379
 python scripts/serve.py              # http://127.0.0.1:8765
 ```
 
-## Keeping the public demo alive (author's PC)
+## Older approach: the demo from the author's PC (not in use)
 
 The live demo is the app container on the author's PC behind a free Cloudflare quick tunnel, whose address can change or be dropped.
 `scripts/tunnel_watchdog.py` checks every minute: if the app is down it starts Docker Desktop and the `bedrock-live` container; if the public
@@ -76,3 +76,28 @@ Unregister-ScheduledTask -TaskName BedrockWatchdog -Confirm:$false
 ```
 
 Log: `data/staging/watchdog.log`. It needs the user to be logged in (not just the PC on), `cloudflared` installed and `npx wrangler` logged in.
+
+## The live demo on AWS (in use)
+
+`deploy/aws/userdata.sh` is the boot script of a single EC2 instance (t3.small, Amazon Linux 2023, us-east-1). It installs Docker, clones this
+repository, builds the same `Dockerfile` as the local setup and runs it on port 80 with `BEDROCK_PUBLIC=1` (rate limits on). The Groq key is read
+from an encrypted AWS Systems Manager parameter (`/bedrock/groq_api_key`) by an instance role that can read only that parameter; it is not in the repo or in
+the script. The instance has no SSH. Its security group allows port 80 only from CloudFront (managed prefix list `com.amazonaws.global.cloudfront.origin-facing`),
+and a CloudFront distribution (no caching, 60 s origin timeout) provides the permanent https address. The container restarts by itself after a reboot.
+
+To update after a code change: `aws ssm send-command` or reconnect with Session Manager, then `cd /opt/bedrock && git pull && docker build -t bedrock-demo . && docker rm -f bedrock-live && docker run ...` (same flags as the script).
+
+Remove everything when judging is over (stops all charges):
+
+```bash
+aws cloudfront get-distribution-config --id <ID>   # disable it first (Enabled=false), wait until Deployed, then delete-distribution
+aws ec2 terminate-instances --instance-ids <instance-id>
+aws ec2 release-address --allocation-id <eipalloc-id>
+aws ec2 delete-security-group --group-id <sg-id>          # after the instance is gone
+aws ssm delete-parameter --name /bedrock/groq_api_key
+aws iam remove-role-from-instance-profile --instance-profile-name bedrock-demo-ec2 --role-name bedrock-demo-ec2
+aws iam delete-instance-profile --instance-profile-name bedrock-demo-ec2
+aws iam detach-role-policy --role-name bedrock-demo-ec2 --policy-arn arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+aws iam delete-role-policy --role-name bedrock-demo-ec2 --policy-name read-groq-key
+aws iam delete-role --role-name bedrock-demo-ec2
+```

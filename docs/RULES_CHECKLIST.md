@@ -29,12 +29,12 @@ Legend: [x] true in the repo today, [ ] still to do at submission, n/a not a req
 - [x] README with setup instructions and the graph data model
 - [x] The Cypher the product depends on: `queries/audit/*.cypher` (plus `queries/00_schema.cypher` and the derived-edge queries)
 - [x] Demo video: https://youtu.be/bqgNoxluHjw (2:15, unlisted)
-- [x] Live deployment (served from the author's PC through a tunnel, address on the product page) and complete local setup: `docker compose --profile demo up --build app` (`docs/DEPLOY.md`)
+- [x] Live deployment (AWS EC2 behind CloudFront, https://dylvk78e75qb4.cloudfront.net, linked from the product page) and complete local setup: `docker compose --profile demo up --build app` (`docs/DEPLOY.md`)
 - [ ] Track named in the submission form: Track 01
 
 ## Things to know before submitting
 
 - **Data caveat.** The Retraction Watch database is public but its repository states no licence. The published snapshot (`deploy/`) contains retracted DOIs, dates and reasons from it, with attribution in the README. If the organisers or Retraction Watch object, the snapshot can be removed and rebuilt locally from the pipeline.
 - **Licence.** The code is MIT (`LICENSE`, copyright "2026 ibnweb3"; change the name there if you want your real name). The data keeps its own terms (see the README "License" section).
-- **Live demo availability.** The live address points at the author's PC through a Cloudflare quick tunnel; it only works while the PC and Docker are running. The one-command local setup is the fallback.
+- **Live demo availability.** The live app runs on one small AWS server (t3.small) behind CloudFront, so it does not depend on the author's PC. It is a single small server: expect it to be slow under load, and the one-command local setup is the dependable fallback.
 - **Rule changes.** The page says rules may be updated. Re-read it on Oct 18 before submitting.

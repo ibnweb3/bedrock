@@ -413,7 +413,7 @@ html.js .hero .wrap > h1 { animation-delay: 70ms; } html.js .hero .wrap > .lede 
       <span class="eyebrow">Try it</span>
       <h2 id="h-try">Three ways in</h2>
       <div class="cards">
-        <div class="card"><h3>Live audit</h3><p>Paste a reference list and get findings, paths and proposed edits in seconds. The live demo is served from the author's machine; if it is offline, run it yourself with one command (see the repository).</p><a class="btn primary" id="card-live" href="#try" data-config="live" aria-disabled="true">Link added at launch</a></div>
+        <div class="card"><h3>Live audit</h3><p>Paste a reference list and get findings, paths and proposed edits in seconds. The live demo runs on a small AWS server. If it is ever slow or down, run it yourself with one command (see the repository).</p><a class="btn primary" id="card-live" href="#try" data-config="live" aria-disabled="true">Link added at launch</a></div>
         <div class="card"><h3>Demo video</h3><p>A two-minute walk through an audit, the approval step and the backtest result.</p><a class="btn" id="card-video" href="#try" data-config="video" aria-disabled="true">Link added at launch</a></div>
         <div class="card"><h3>Source and setup</h3><p>The full pipeline, the Cypher queries, the tests and the decision log, with setup steps in the README.</p><a class="btn" href="https://github.com/ibnweb3/bedrock#readme">Open the repository</a></div>
       </div>
@@ -434,7 +434,7 @@ html.js .hero .wrap > h1 { animation-delay: 70ms; } html.js .hero .wrap > .lede 
 <script>
 "use strict";
 /* Set these at launch; until then the buttons say so instead of pointing nowhere. */
-const LINKS = { live: "https://tone-searches-calgary-clubs.trycloudflare.com", video: "https://youtu.be/bqgNoxluHjw" };
+const LINKS = { live: "https://dylvk78e75qb4.cloudfront.net", video: "https://youtu.be/bqgNoxluHjw" };
 
 document.querySelectorAll("[data-config]").forEach((a) => {
   const url = LINKS[a.dataset.config];

@@ -117,7 +117,7 @@ I checked that from a fresh clone with no keys: a no-cache build took just over 
 - It knows only its corpus: 213 journals, 251,645 articles and the papers they cite, with a Retraction Watch snapshot from Oct 15, 2026.
 - It looks two hops back. "No exposure found" means nothing was found within that, not that a paper is sound.
 - Reasons and dates come from Retraction Watch. A flag is a prompt for a person to read, never a finding about an author.
-- The live demo runs from my own machine, so the one-command setup above is the dependable path.
+- The live demo runs on one small AWS server, so it can be slow if many people try it at once. The one-command setup above always works.
 
 ## What I learned
 
