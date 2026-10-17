@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>The retraction two citations back - Bedrock write-up</title>
+<meta name="description" content="How I built Bedrock in three days on FalkorDB: a citation-graph audit that finds the retracted papers your bibliography stands on, what the 59-second query taught me, and the prediction test that failed.">
+<meta property="og:type" content="article">
+<meta property="og:title" content="The retraction two citations back">
+<meta property="og:description" content="Building a citation-path audit on FalkorDB for Graph Hacks 2026: the graph, the 59-second query, an AI agent kept on a short leash, and a prediction test that failed.">
+<meta property="og:image" content="https://bedrock-audit.ibnweb3lab.workers.dev/strata.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<script>
+if ("IntersectionObserver" in window && !matchMedia("(prefers-reduced-motion: reduce)").matches) document.documentElement.classList.add("js");
+</script>
+<style>
+:root {
+  --paper: #f3f6f8; --surface: #ffffff; --ink: #0d1b24; --ink-2: #475569; --muted: #5a6b7e; --line: #d3dde4;
+  --teal: #0b6e8f; --teal-ink: #ffffff; --alert: #b3261e; --alert-bg: #fbe9e7; --warn: #8a5a00; --warn-bg: #fdf1d6;
+  --ok: #1b6a3d; --ok-bg: #e2f3e8; --node: #ecf3f7; --code-bg: #0f1d27; --code-ink: #dce8ef; --focus: rgba(11, 110, 143, .45);
+  --c-kw: #7fd0ee; --c-fn: #f0c75e; --c-str: #8fdba9; --c-cm: #7f93a3; --c-par: #ff9a8c;
+  --display: "Space Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --text: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0a1319; --surface: #111d25; --ink: #e7eef2; --ink-2: #94a3b8; --muted: #7f90a6; --line: #24343f;
+    --teal: #62c3e8; --teal-ink: #06141b; --alert: #ff8f80; --alert-bg: #3a1b18; --warn: #f0c75e; --warn-bg: #352c0e;
+    --ok: #7ed7a0; --ok-bg: #12301f; --node: #16252f; --code-bg: #0c171f; --focus: rgba(98, 195, 232, .5); color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; scroll-padding-top: 84px; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 400 1.0625rem/1.75 var(--text); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; -webkit-tap-highlight-color: rgba(0, 0, 0, 0); overflow-x: clip; }
+::selection { background: var(--teal); color: var(--teal-ink); }
+a { color: var(--teal); text-underline-offset: 3px; text-decoration-thickness: 1px; }
+a:focus-visible, button:focus-visible, summary:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus); border-radius: 6px; }
+.wrap { width: min(1120px, 100%); margin-inline: auto; padding-inline: max(20px, env(safe-area-inset-left, 0px)); }
+
+/* progress + header */
+#bar { position: fixed; inset: 0 auto auto 0; height: 3px; width: 100%; background: var(--teal); transform: scaleX(0); transform-origin: left; z-index: 20; pointer-events: none; }
+header.top { position: sticky; top: 0; z-index: 10; background: color-mix(in srgb, var(--paper) 88%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+header.top .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-block: 12px; }
+.brand { display: flex; align-items: center; gap: 10px; font: 700 1.15rem/1 var(--display); letter-spacing: -.04em; color: var(--ink); text-decoration: none; }
+.brand svg { width: 28px; height: 28px; }
+nav { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+nav a { color: var(--ink-2); text-decoration: none; padding: 8px 10px; border-radius: 8px; font: 500 .85rem/1 var(--mono); min-height: 40px; display: inline-flex; align-items: center; transition: color 120ms, background-color 120ms; }
+nav a.cta { color: var(--teal-ink); background: var(--teal); font-weight: 600; }
+@media (hover: hover) { nav a:hover { color: var(--ink); background: var(--node); } nav a.cta:hover { background: var(--teal); filter: brightness(1.08); } }
+@media (max-width: 640px) { nav a.hide-s { display: none; } }
+
+/* hero */
+.hero { position: relative; isolation: isolate; overflow: clip; padding-block: clamp(56px, 9vw, 120px) clamp(36px, 5vw, 64px); }
+.hero::before { content: ""; position: absolute; inset: 0; z-index: -2; pointer-events: none; background: url("../strata.jpg") center 35% / cover no-repeat; animation: drift 26s ease-in-out infinite alternate; }
+.hero::after { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; background: linear-gradient(to bottom, color-mix(in srgb, var(--paper) 70%, transparent), color-mix(in srgb, var(--paper) 88%, transparent) 60%, var(--paper)); }
+@keyframes drift { from { transform: scale(1.04) translate3d(-1%, 0, 0); } to { transform: scale(1.12) translate3d(1.5%, 1.5%, 0); } }
+.eyebrow { font: 500 .75rem/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 18px; }
+h1 { font: 600 clamp(2.3rem, 6vw, 4.2rem)/1.04 var(--text); letter-spacing: -.04em; margin: 0; max-width: 18ch; text-wrap: balance; }
+.dek { font-size: clamp(1.1rem, 2vw, 1.35rem); line-height: 1.55; color: var(--ink-2); max-width: 46ch; margin: 22px 0 0; }
+.byline { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 28px; font: 500 .8rem/1.4 var(--mono); color: var(--muted); }
+.byline b { color: var(--ink); font-weight: 600; }
+.keys { display: grid; grid-template-columns: repeat(4, 1fr); border-block: 1px solid var(--line); margin-top: 38px; background: color-mix(in srgb, var(--paper) 70%, transparent); }
+.keys div { padding: 16px 18px 16px 0; min-width: 0; }
+.keys div + div { padding-left: 18px; border-left: 1px solid var(--line); }
+.keys b { display: block; font: 700 clamp(1.5rem, 3vw, 2.1rem)/1 var(--display); letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.keys span { display: block; margin-top: 6px; font-size: .8rem; line-height: 1.4; color: var(--ink-2); }
+@media (max-width: 760px) { .keys { grid-template-columns: 1fr 1fr; } .keys div:nth-child(3) { padding-left: 0; border-left: 0; } .keys div:nth-child(n+3) { border-top: 1px solid var(--line); } }
+
+/* layout */
+.layout { display: grid; grid-template-columns: minmax(0, 700px) 210px; gap: clamp(32px, 6vw, 88px); justify-content: center; padding-block: 24px clamp(48px, 8vw, 96px); }
+@media (max-width: 1000px) { .layout { grid-template-columns: minmax(0, 700px); } aside.toc { display: none; } }
+aside.toc { position: sticky; top: 92px; align-self: start; font: 500 .8rem/1.4 var(--mono); }
+aside.toc p { margin: 0 0 12px; font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+aside.toc a { display: block; padding: 7px 0 7px 14px; color: var(--ink-2); text-decoration: none; border-left: 2px solid var(--line); transition: color 140ms, border-color 140ms; }
+aside.toc a.on { color: var(--ink); border-left-color: var(--teal); }
+@media (hover: hover) { aside.toc a:hover { color: var(--ink); } }
+
+/* article */
+article h2 { font: 600 clamp(1.6rem, 3.2vw, 2.15rem)/1.15 var(--display); letter-spacing: -.025em; margin: 3.2rem 0 1rem; text-wrap: balance; }
+article h2 .n { font: 500 .8rem/1 var(--mono); color: var(--teal); letter-spacing: .08em; display: block; margin-bottom: 10px; }
+article h3 { font: 500 1.15rem/1.3 var(--display); letter-spacing: -.01em; margin: 2rem 0 .5rem; }
+article p { margin: 0 0 1.25rem; }
+article ul, article ol { padding-left: 1.3rem; margin: 0 0 1.25rem; }
+article li { margin-bottom: .5rem; }
+article strong { font-weight: 600; }
+.lead { font-size: 1.22rem; line-height: 1.65; color: var(--ink); }
+code { font: 500 .88em var(--mono); background: var(--node); padding: .12em .4em; border-radius: 5px; overflow-wrap: anywhere; }
+blockquote { margin: 1.8rem 0; padding: 4px 0 4px 22px; border-left: 3px solid var(--teal); font: 500 1.25rem/1.5 var(--display); letter-spacing: -.01em; }
+.callout { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--teal); border-radius: 10px; padding: 16px 20px; margin: 1.8rem 0; font-size: .98rem; line-height: 1.65; }
+.callout.bad { border-left-color: var(--alert); }
+.callout b.t { display: block; font: 500 .72rem/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+.callout p:last-child { margin: 0; }
+figure { margin: 2rem 0; }
+figcaption { font: 400 .85rem/1.5 var(--text); color: var(--muted); margin-top: 10px; }
+.fig { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; overflow-x: auto; }
+svg { display: block; max-width: 100%; height: auto; }
+.fig > svg { min-width: 600px; }
+svg text { font-family: var(--mono); }
+
+/* code */
+.code { position: relative; background: var(--code-bg); color: var(--code-ink); border-radius: 12px; margin: 1.8rem 0; border: 1px solid #1d3140; }
+.code .bar { display: flex; justify-content: space-between; align-items: center; padding: 9px 14px; border-bottom: 1px solid #1d3140; font: 500 .72rem/1 var(--mono); color: #8da3b3; letter-spacing: .04em; }
+.code pre { margin: 0; padding: 16px 18px; overflow-x: auto; font: 400 .82rem/1.65 var(--mono); tab-size: 2; }
+.code button { font: 500 .72rem/1 var(--mono); color: #cfe3ee; background: #16303f; border: 1px solid #25475a; border-radius: 6px; padding: 6px 9px; cursor: pointer; user-select: none; transition: transform 120ms; }
+.code button:active { transform: scale(.96); }
+.code pre code { background: none; padding: 0; font-size: inherit; border-radius: 0; }
+.k { color: var(--c-kw); } .f { color: var(--c-fn); } .s { color: var(--c-str); } .c { color: var(--c-cm); font-style: italic; } .p { color: var(--c-par); }
+
+/* chart */
+.bars { display: grid; gap: 9px; }
+.bars .r { display: grid; grid-template-columns: minmax(130px, 220px) 1fr 64px; gap: 12px; align-items: center; font: 400 .85rem/1.3 var(--mono); }
+.bars .t { height: 14px; background: var(--node); border-radius: 4px; position: relative; overflow: hidden; }
+.bars .t i { position: absolute; inset: 0 auto 0 0; background: var(--teal); border-radius: 4px; transform-origin: left; transition: transform 900ms cubic-bezier(.2,.7,.2,1); transition-delay: calc(var(--r, 0) * 90ms); }
+.bars .t i.g { background: var(--ink-2); opacity: .5; }
+.bars .v { text-align: right; font-variant-numeric: tabular-nums; }
+html.js .fig:not(.seen) .bars .t i { transform: scaleX(0); }
+@media (max-width: 560px) { .bars .r { grid-template-columns: 1fr 56px; } .bars .t { grid-column: 1 / -1; order: 3; } }
+
+/* video */
+.video { position: relative; aspect-ratio: 16 / 9; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); background: #000; margin: 2rem 0; }
+.video iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+
+.try { display: flex; flex-wrap: wrap; gap: 12px; margin: 1.5rem 0 0; }
+.btn { font: 600 .9rem/1 var(--mono); display: inline-flex; align-items: center; min-height: 46px; padding: 0 20px; border-radius: 10px; text-decoration: none; border: 1px solid var(--line); background: var(--surface); color: var(--ink); transition: transform 120ms; }
+.btn.primary { background: var(--teal); color: var(--teal-ink); border-color: var(--teal); }
+.btn:active { transform: scale(.97); }
+@media (hover: hover) { .btn:hover { transform: translateY(-1px); } }
+footer { border-top: 1px solid var(--line); padding-block: 32px 56px; color: var(--ink-2); font-size: .9rem; }
+footer p { margin: 0 0 8px; max-width: 80ch; }
+
+html.js .rv { opacity: .3; transform: translateY(16px); transition: opacity 600ms ease, transform 600ms cubic-bezier(.2,.7,.2,1); }
+html.js .rv.in { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+<div id="bar" aria-hidden="true"></div>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="../" aria-label="Bedrock, product page">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="var(--teal)"/><path d="M7 21h18v3H7zM9 15h14v3H9zM12 9h8v3h-8z" fill="var(--teal-ink)"/></svg>
+      Bedrock
+    </a>
+    <nav aria-label="Links">
+      <a class="hide-s" href="https://github.com/ibnweb3/bedrock">Code</a>
+      <a class="hide-s" href="https://youtu.be/bqgNoxluHjw">Video</a>
+      <a class="cta" href="../">Try Bedrock</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="wrap">
+      <span class="eyebrow">Graph Hacks 2026 &middot; Track 01 &middot; a build write-up</span>
+      <h1>The retraction two citations back</h1>
+      <p class="dek">How I built a citation-path audit on FalkorDB in three days, what a 59-second query taught me, and why I'm proudest of a test that failed.</p>
+      <div class="byline"><span><b>ibnweb3</b></span><span>Oct 17, 2026</span><span>8 min read</span></div>
+      <div class="keys">
+        <div><b>312,108</b><span>papers in the graph</span></div>
+        <div><b>61,299</b><span>retracted works indexed</span></div>
+        <div><b>2.8%</b><span>of 251,645 articles cite a work since retracted</span></div>
+        <div><b>0 of 2,501</b><span>audits differ between the full and the slim graph</span></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="wrap">
+    <div class="layout">
+      <article>
+        <p class="lead rv">Imagine you've spent a year on a literature review. Every source on your list checks out, because your reference manager flags nothing. But two steps back, one of those sources leans on a paper that was retracted years ago, and no tool you use was ever going to tell you.</p>
+
+        <p class="rv">That gap is what Bedrock is for. You paste a list of DOIs, and it follows every citation path, up to two steps, from your papers to retracted research. For each finding it shows the exact chain, the retraction date and the reasons on record. An AI agent explains the results and proposes edits. It can never apply them.</p>
+
+        <p class="rv">This is the story of building it for Graph Hacks, with the parts that went well, the part that went badly, and the part where my own agent miscounted.</p>
+
+        <h2 id="idea" class="rv"><span class="n">01 &middot; THE IDEA</span>A question about paths, not rows</h2>
+        <p class="rv">Tools that flag retractions typically check the papers you cite. They don't ask what those papers cite. That second question is a graph question: start at a paper, follow <code>CITES</code> edges, stop when you reach a retracted node, and report the path.</p>
+
+        <figure class="rv">
+          <div class="fig">
+            <svg viewBox="0 0 760 150" role="img" aria-label="A reference cites an unflagged source, which cites a retracted paper">
+              <defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--ink-2)"/></marker></defs>
+              <rect x="6" y="30" width="200" height="86" rx="10" fill="var(--node)" stroke="var(--line)"/>
+              <text x="20" y="56" font-size="11" fill="var(--muted)" letter-spacing="1">YOUR REFERENCE</text>
+              <text x="20" y="82" font-size="12" fill="var(--ink)" font-weight="500">10.1016/j.neubiorev</text>
+              <text x="20" y="100" font-size="12" fill="var(--ink)" font-weight="500">.2019.09.040</text>
+              <line x1="210" y1="73" x2="268" y2="73" stroke="var(--ink-2)" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#ah)"/>
+              <text x="222" y="62" font-size="11" fill="var(--ink-2)">cites</text>
+              <rect x="278" y="30" width="200" height="86" rx="10" fill="var(--node)" stroke="var(--line)"/>
+              <text x="292" y="56" font-size="11" fill="var(--muted)" letter-spacing="1">NOT FLAGGED</text>
+              <text x="292" y="82" font-size="12" fill="var(--ink)" font-weight="500">10.1111/ejn.13603</text>
+              <text x="292" y="100" font-size="11" fill="var(--ink-2)">looks clean</text>
+              <line x1="482" y1="73" x2="540" y2="73" stroke="var(--ink-2)" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#ah)"/>
+              <text x="494" y="62" font-size="11" fill="var(--ink-2)">cites</text>
+              <rect x="550" y="30" width="204" height="86" rx="10" fill="var(--alert-bg)" stroke="var(--alert)"/>
+              <text x="564" y="56" font-size="11" fill="var(--alert)" letter-spacing="1">RETRACTED 2014-10-01</text>
+              <text x="564" y="82" font-size="12" fill="var(--ink)" font-weight="500">10.1016/j.jpsychires</text>
+              <text x="564" y="100" font-size="12" fill="var(--ink)" font-weight="500">.2014.06.018</text>
+            </svg>
+          </div>
+          <figcaption>A real path from the corpus. The middle paper is not retracted, which is exactly why nothing warns you.</figcaption>
+        </figure>
+
+        <p class="rv">Two rules shaped everything. First, <strong>Bedrock states facts about a fixed corpus, it doesn't guess</strong>. A paper with "no exposure found" is never called safe, only not found within two hops. Second, <strong>the person decides</strong>. The agent proposes, a human approves.</p>
+
+        <h2 id="data" class="rv"><span class="n">02 &middot; THE DATA</span>Public, and kept that way</h2>
+        <p class="rv">The retractions come from the Retraction Watch database, which Crossref distributes. The citations come from OpenAlex, which is CC0. I pulled works from 213 journals, 251,645 articles in all, and joined them to 61,299 retracted works. The rules ask for public data only, so I took that seriously: authors were hashed with a secret salt in memory before anything touched disk, and names, emails and ORCIDs were dropped. The graph I publish has <strong>no author data at all</strong>.</p>
+
+        <figure class="rv">
+          <div class="fig">
+            <svg viewBox="0 0 760 170" role="img" aria-label="Pipeline from data sources to FalkorDB to the app and agent">
+              <defs><marker id="ah2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--ink-2)"/></marker></defs>
+              <g font-size="11" fill="var(--ink)">
+                <rect x="6" y="14" width="150" height="50" rx="8" fill="var(--node)" stroke="var(--line)"/><text x="18" y="35" font-weight="600">Retraction Watch</text><text x="18" y="52" fill="var(--ink-2)">61,299 retracted</text>
+                <rect x="6" y="100" width="150" height="50" rx="8" fill="var(--node)" stroke="var(--line)"/><text x="18" y="121" font-weight="600">OpenAlex (CC0)</text><text x="18" y="138" fill="var(--ink-2)">citations, venues</text>
+                <rect x="232" y="52" width="170" height="68" rx="10" fill="var(--teal)" stroke="var(--teal)"/><text x="248" y="80" font-weight="700" fill="var(--teal-ink)" font-size="13">FalkorDB</text><text x="248" y="100" fill="var(--teal-ink)">Cypher traversals</text>
+                <rect x="478" y="14" width="136" height="50" rx="8" fill="var(--node)" stroke="var(--line)"/><text x="490" y="35" font-weight="600">Audit queries</text><text x="490" y="52" fill="var(--ink-2)">paths, coverage</text>
+                <rect x="478" y="100" width="136" height="50" rx="8" fill="var(--node)" stroke="var(--line)"/><text x="490" y="121" font-weight="600">Read-only agent</text><text x="490" y="138" fill="var(--ink-2)">3 tools</text>
+                <rect x="660" y="52" width="94" height="68" rx="10" fill="var(--ok-bg)" stroke="var(--ok)"/><text x="672" y="80" font-weight="700" fill="var(--ok)">You</text><text x="672" y="100" fill="var(--ok)">approve</text>
+              </g>
+              <g stroke="var(--ink-2)" stroke-width="1.6" fill="none" marker-end="url(#ah2)"><path d="M158 40 L226 72"/><path d="M158 126 L226 100"/><path d="M404 74 L472 44"/><path d="M404 98 L472 124"/><path d="M616 40 L654 66"/><path d="M616 126 L654 106"/></g>
+            </svg>
+          </div>
+          <figcaption>The graph produces every finding. The model only writes the summary, and a person approves any change.</figcaption>
+        </figure>
+
+        <h2 id="graph" class="rv"><span class="n">03 &middot; THE GRAPH</span>Small model, sharp queries</h2>
+        <p class="rv">The model is deliberately plain: <code>Paper</code> nodes carrying <code>doi</code>, <code>retracted_at</code> and <code>retraction_reasons</code>, <code>Venue</code> nodes, and two relationships, <code>CITES</code> and <code>PUBLISHED_IN</code>. A retraction is a property, not its own node, which keeps the graph small and makes "as of this date" filters trivial. The two-hop question is one query:</p>
+
+        <div class="code rv">
+          <div class="bar"><span>queries/audit/22_two_hop.cypher</span><button type="button" data-copy>Copy</button></div>
+<pre><code><span class="k">UNWIND</span> $ids <span class="k">AS</span> i
+<span class="k">MATCH</span> (p:Paper {id: i})
+<span class="k">WITH</span> p
+<span class="k">MATCH</span> (p)-[:CITES]-&gt;(x:Paper)
+<span class="k">WHERE</span> x.retracted_at <span class="k">IS NULL</span>
+<span class="k">WITH</span> p, x
+<span class="k">MATCH</span> (x)-[:CITES]-&gt;(r:Paper)
+<span class="k">WHERE</span> r.retracted_at <span class="k">IS NOT NULL AND NOT</span> (p)-[:CITES]-&gt;(r)
+<span class="k">RETURN</span> p.id, x.id, x.doi, r.id, r.doi, r.retracted_at, r.retraction_reasons
+<span class="k">LIMIT</span> $limit</code></pre>
+        </div>
+        <p class="rv">Read it aloud: the paper cites <code>x</code>, <code>x</code> isn't retracted, <code>x</code> cites a retracted <code>r</code>, and the paper doesn't already cite <code>r</code> directly. Everything Bedrock shows, the direct hits, the two-hop paths and the "papers cited alongside it" suggestions for replacements, is a query of this size, run by FalkorDB.</p>
+
+        <h2 id="speed" class="rv"><span class="n">04 &middot; THE 59-SECOND QUERY</span>The planner started in the wrong place</h2>
+        <p class="rv">My first audit of nine papers took <strong>59 seconds</strong>. The data was small and the question was simple, so something was off. The cause: FalkorDB's planner began at the 61,299 retracted papers and worked back toward my input, instead of starting at the few papers I'd asked about. The fix was the humble <code>WITH p</code> you can see above. It forces the traversal to start from the input papers and expand their handful of references.</p>
+
+        <figure class="rv">
+          <div class="fig">
+            <div class="bars" role="img" aria-label="Audit time for nine papers: 59 seconds before, under half a second after">
+              <div class="r"><span>Without the barrier</span><span class="t"><i class="g" style="width:100%"></i></span><span class="v">59 s</span></div>
+              <div class="r" style="--r:1"><span>With WITH barriers</span><span class="t"><i style="width:2%"></i></span><span class="v">&lt; 0.4 s</span></div>
+            </div>
+          </div>
+          <figcaption>Nine papers took 59 s before the fix. Re-timed on Oct 17 after it: 0.05 to 0.4 s for nine papers and 0.15 to 0.4 s for 150.</figcaption>
+        </figure>
+
+        <div class="callout"><b class="t">What I took from it</b><p>A graph database makes the shape of the query matter more than the size of the data. When an indexed lookup can anchor a traversal, <em>say so</em> in the query. It's the difference between a demo and a product.</p></div>
+
+        <h2 id="prediction" class="rv"><span class="n">05 &middot; THE TEST THAT FAILED</span>I tried to predict retractions</h2>
+        <p class="rv">Bedrock's first idea was ambitious: use graph signals, like who a paper cites, who it shares authors with, and which community it sits in, to predict which papers will be retracted. Before looking at any result I wrote down the pass mark: the graph method had to beat the best simple baseline, and the gap had to survive removing the largest journal. Then I ran it on 134,798 articles from journals with a retraction history, 140 of which were retracted within the next two years (cutoff 2020-12-31).</p>
+
+        <figure class="rv">
+          <div class="fig">
+            <div class="bars" role="img" aria-label="Average precision by method at the 2020-12-31 cutoff">
+              <div class="r"><span>Random ranking</span><span class="t"><i class="g" style="width:15%"></i></span><span class="v">0.0012</span></div>
+              <div class="r" style="--r:1"><span>Journal's past retraction rate</span><span class="t"><i style="width:82.5%"></i></span><span class="v">0.0066</span></div>
+              <div class="r" style="--r:2"><span>Cites a retracted work</span><span class="t"><i style="width:82.5%"></i></span><span class="v">0.0066</span></div>
+              <div class="r" style="--r:3"><span>Two citation hops</span><span class="t"><i style="width:26.3%"></i></span><span class="v">0.0021</span></div>
+              <div class="r" style="--r:4"><span>All graph signals</span><span class="t"><i style="width:51.3%"></i></span><span class="v">0.0041</span></div>
+              <div class="r" style="--r:5"><span>Journal history + graph</span><span class="t"><i style="width:92.5%"></i></span><span class="v">0.0074</span></div>
+            </div>
+          </div>
+          <figcaption>Average precision at the 2020-12-31 cutoff (higher is better; the axis ends at 0.008). The best combination beat the journal baseline by less than the uncertainty.</figcaption>
+        </figure>
+
+        <div class="callout bad"><b class="t">The verdict</b><p><strong>No reliable improvement.</strong> The 140 retractions were concentrated in 20 to 27 journals, so the study has low power, and the multi-hop signals did not beat their one-hop versions. The single signal that stood out, "this paper already cites a retracted one", made a paper 5 to 12 times more likely than average to be retracted later, depending on the cutoff. That is a lookup, not a forecast.</p></div>
+
+        <p class="rv">I could have shipped a "retraction risk score" anyway. It would have looked impressive and been unearned. Instead I changed the product: Bedrock stopped predicting and started proving. Exact provenance, with the failed test on the front page. That decision, more than any query, is what I'd defend in front of anyone.</p>
+
+        <h2 id="agent" class="rv"><span class="n">06 &middot; THE AGENT</span>Useful, on a short leash</h2>
+        <p class="rv">The agent runs on Groq's free tier with <code>openai/gpt-oss-120b</code>. It has three tools, <code>audit_bibliography</code>, <code>explain_finding</code> and <code>find_dois</code>, and every one only reads. There's no edit tool, and a test makes sure it stays that way. The guardrails came from watching it misbehave:</p>
+        <ul class="rv">
+          <li><strong>Grounding.</strong> Every DOI in the answer must come from your text or a tool result. Models retyped DOIs and corrupted some, so an invented one now raises a visible warning.</li>
+          <li><strong>Completeness.</strong> It once skipped a flagged paper. If the summary omits one, the agent gets a single retry; anything still missing is appended in plain words.</li>
+          <li><strong>Counts.</strong> The same run opened with "one retracted paper" when the audit had found two. Models miscount, so the opening line, "Checked 9 DOIs: 2 retracted, 2 cite a retracted work directly...", is written by code from the audit, never by the model.</li>
+          <li><strong>Fallback.</strong> The findings are computed independently of the model. If the key is missing or Groq is rate-limited, you still get the full audit.</li>
+        </ul>
+        <p class="rv">Then the approval step: the server re-runs the audit itself and only applies proposal ids it generated. The browser can't hand it a result to trust.</p>
+
+        <h2 id="ship" class="rv"><span class="n">07 &middot; SHIPPING IT</span>2.5 million nodes down to 318,942</h2>
+        <p class="rv">The research graph, with authors and two derived edge types for the backtest (1.69M <code>COAUTHOR</code> and 2.68M <code>BIB_COUPLED</code>, both built in Cypher inside FalkorDB), reaches about 2.5 million nodes. Too big to hand to anyone. But an exposure path can only follow <code>CITES</code> between papers I hold, so for the audit most of it is dead weight.</p>
+        <p class="rv">So I built a slim graph with just papers, venues and the citations between held papers: <strong>318,942 nodes and 530,894 edges</strong>. Then I tested the claim, not just made it. A script audited 2,501 DOIs on both graphs and compared the complete results, statuses, paths, reasons, coverage and alternatives. <strong>Zero differences.</strong> (That test also caught a real bug: self-citations had inflated a reference count by exactly one in 37 papers.)</p>
+        <p class="rv">The slim graph ships as a 17 MB <code>DUMP</code> snapshot in the repo. In a container limited to 512 MB and a tenth of a CPU, it restores in about a minute and sits at roughly 300 MB. A judge can run the whole thing with:</p>
+        <div class="code rv">
+          <div class="bar"><span>terminal</span><button type="button" data-copy>Copy</button></div>
+<pre><code>git clone https://github.com/ibnweb3/bedrock &amp;&amp; cd bedrock
+docker compose --profile demo up --build app
+<span class="c"># open http://127.0.0.1:8765</span></code></pre>
+        </div>
+        <p class="rv">I checked that from a fresh clone with no keys: a no-cache build took just over two minutes and the app answered five seconds after starting.</p>
+
+        <h2 id="limits" class="rv"><span class="n">08 &middot; HONEST LIMITS</span>What it can't tell you</h2>
+        <ul class="rv">
+          <li>It knows only its corpus: 213 journals, 251,645 articles and the papers they cite, with a Retraction Watch snapshot from Oct 15, 2026.</li>
+          <li>It looks two hops back. "No exposure found" means nothing was found within that, not that a paper is sound.</li>
+          <li>Reasons and dates come from Retraction Watch. A flag is a prompt for a person to read, never a finding about an author.</li>
+          <li>The live demo runs from my own machine, so the one-command setup above is the dependable path.</li>
+        </ul>
+
+        <h2 id="try" class="rv"><span class="n">09 &middot; TRY IT</span>A two-minute tour</h2>
+        <div class="video rv"><iframe src="https://www.youtube-nocookie.com/embed/bqgNoxluHjw" title="Bedrock demo video" loading="lazy" allow="accelerometer; encrypted-media; picture-in-picture" allowfullscreen></iframe></div>
+        <div class="try rv">
+          <a class="btn primary" href="../">Open Bedrock</a>
+          <a class="btn" href="https://github.com/ibnweb3/bedrock">Read the code</a>
+          <a class="btn" href="https://youtu.be/bqgNoxluHjw">Watch on YouTube</a>
+        </div>
+
+        <h3>What I learned</h3>
+        <ul class="rv">
+          <li>Write the pass mark before you run the test. It's the only reason a failure was a result instead of an argument.</li>
+          <li>In a graph database, anchor your traversals. Query shape beats data size.</li>
+          <li>Let code state the facts and let the model write the prose. Check its numbers anyway.</li>
+          <li>Prove your shortcuts. "The slim graph is equivalent" became a claim I could stand behind only after the 2,501-DOI test.</li>
+        </ul>
+
+        <h3>How this was built</h3>
+        <p class="rv">I built it solo in three days, with Claude Code writing most of the code and docs from my instructions. I chose the idea, set the rules, approved the experiment's size, decided the pivot from prediction to provenance, picked Groq for the agent, and signed off every publication and deployment. The decision log is in the repo at <code>docs/DECISIONS.md</code>. The code is MIT licensed; the data keeps its own terms.</p>
+      </article>
+
+      <aside class="toc" aria-label="Contents">
+        <p>On this page</p>
+        <a href="#idea">The idea</a>
+        <a href="#data">The data</a>
+        <a href="#graph">The graph</a>
+        <a href="#speed">The 59-second query</a>
+        <a href="#prediction">The test that failed</a>
+        <a href="#agent">The agent</a>
+        <a href="#ship">Shipping it</a>
+        <a href="#limits">Honest limits</a>
+        <a href="#try">Try it</a>
+      </aside>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>Built for Graph Hacks: Context for AI Agents (WeMakeDevs and FalkorDB), Track 01, Agents That Act on Connected Data.</p>
+    <p>Data: retractions from the Retraction Watch database, distributed by Crossref; citations from OpenAlex (CC0). Graph engine: FalkorDB. Agent: Groq, openai/gpt-oss-120b. Code written with Claude Code.</p>
+    <p>Photo: sedimentary rock layers at Zabriskie Point, Death Valley, by Brigitte Werner, CC0 (<a href="https://commons.wikimedia.org/wiki/File:Sedimentary_Rock_Layers_Zabriskie_Point_Death_Valley_USA.jpg">Wikimedia Commons</a>).</p>
+  </div>
+</footer>
+
+<script>
+"use strict";
+/* reading progress */
+const bar = document.getElementById("bar");
+let tick = false;
+function progress() {
+  const h = document.documentElement;
+  const max = h.scrollHeight - h.clientHeight;
+  bar.style.transform = "scaleX(" + (max > 0 ? Math.min(1, h.scrollTop / max) : 0) + ")";
+  tick = false;
+}
+addEventListener("scroll", () => { if (!tick) { tick = true; requestAnimationFrame(progress); } }, { passive: true });
+progress();
+
+/* copy buttons */
+document.querySelectorAll("[data-copy]").forEach((b) => b.addEventListener("click", async () => {
+  const code = b.closest(".code").querySelector("code").innerText;
+  try { await navigator.clipboard.writeText(code); b.textContent = "Copied"; } catch { b.textContent = "Select and copy"; }
+  setTimeout(() => { b.textContent = "Copy"; }, 1500);
+}));
+
+/* contents: highlight the section being read */
+const links = new Map([...document.querySelectorAll("aside.toc a")].map((a) => [a.getAttribute("href").slice(1), a]));
+const heads = [...document.querySelectorAll("article h2[id]")];
+const spy = new IntersectionObserver((es) => es.forEach((e) => {
+  if (e.isIntersecting) { links.forEach((a) => a.classList.remove("on")); links.get(e.target.id)?.classList.add("on"); }
+}), { rootMargin: "-30% 0px -60% 0px" });
+heads.forEach((h) => spy.observe(h));
+
+/* reveals and chart growth (only when the page confirmed it can reveal things) */
+if (document.documentElement.classList.contains("js")) {
+  const io = new IntersectionObserver((es) => es.forEach((e) => {
+    if (!e.isIntersecting) return;
+    io.unobserve(e.target);
+    e.target.classList.add("in", "seen");
+    setTimeout(() => e.target.classList.remove("rv", "in"), 900);
+  }), { threshold: 0.1, rootMargin: "0px 0px -6% 0px" });
+  document.querySelectorAll(".rv, .fig").forEach((el) => io.observe(el));
+  setTimeout(() => { if (document.hidden) document.querySelectorAll(".rv, .fig").forEach((el) => { el.classList.remove("rv", "in"); el.classList.add("seen"); }); }, 1500);
+}
+</script>
+</body>
+</html>

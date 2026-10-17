@@ -280,6 +280,7 @@ html.js .hero .wrap > h1 { animation-delay: 70ms; } html.js .hero .wrap > .lede 
       <a class="hide-s" href="#how">How it works</a>
       <a class="hide-s" href="#findings">Example</a>
       <a class="hide-s" href="#tested">What we tested</a>
+      <a class="hide-s" href="blog/">Write-up</a>
       <a class="cta" href="#try">Try it</a>
     </nav>
   </div>
@@ -293,7 +294,7 @@ html.js .hero .wrap > h1 { animation-delay: 70ms; } html.js .hero .wrap > .lede 
       <p class="lede">Paste your references. Bedrock follows every citation path from your sources to retracted research, and shows you the chain.</p>
       <div class="actions">
         <a class="btn primary" id="cta-live" href="#try" data-config="live">Open the live audit</a>
-        <a class="btn" id="cta-video" href="#try" data-config="video">Watch the 3-minute demo</a>
+        <a class="btn" id="cta-video" href="#try" data-config="video">Watch the 2-minute demo</a>
         <a class="btn" href="https://github.com/ibnweb3/bedrock">Read the code</a>
       </div>
 
@@ -413,7 +414,7 @@ html.js .hero .wrap > h1 { animation-delay: 70ms; } html.js .hero .wrap > .lede 
       <h2 id="h-try">Three ways in</h2>
       <div class="cards">
         <div class="card"><h3>Live audit</h3><p>Paste a reference list and get findings, paths and proposed edits in seconds. The live demo is served from the author's machine; if it is offline, run it yourself with one command (see the repository).</p><a class="btn primary" id="card-live" href="#try" data-config="live" aria-disabled="true">Link added at launch</a></div>
-        <div class="card"><h3>Demo video</h3><p>A three-minute walk through an audit, the approval step and the backtest result.</p><a class="btn" id="card-video" href="#try" data-config="video" aria-disabled="true">Link added at launch</a></div>
+        <div class="card"><h3>Demo video</h3><p>A two-minute walk through an audit, the approval step and the backtest result.</p><a class="btn" id="card-video" href="#try" data-config="video" aria-disabled="true">Link added at launch</a></div>
         <div class="card"><h3>Source and setup</h3><p>The full pipeline, the Cypher queries, the tests and the decision log, with setup steps in the README.</p><a class="btn" href="https://github.com/ibnweb3/bedrock#readme">Open the repository</a></div>
       </div>
     </div>
@@ -425,6 +426,7 @@ html.js .hero .wrap > h1 { animation-delay: 70ms; } html.js .hero .wrap > .lede 
     <p>Built for Graph Hacks: Context for AI Agents (WeMakeDevs and FalkorDB), Track 01, Agents That Act on Connected Data.</p>
     <p>Data: retractions from the Retraction Watch database, distributed by Crossref; citations from OpenAlex (CC0). Graph engine: FalkorDB.</p>
     <p>Hero photo: sedimentary rock layers at Zabriskie Point, Death Valley, by Brigitte Werner, CC0 (<a href="https://commons.wikimedia.org/wiki/File:Sedimentary_Rock_Layers_Zabriskie_Point_Death_Valley_USA.jpg">Wikimedia Commons</a>).</p>
+    <p>Read the full build story: <a href="blog/">The retraction two citations back</a>.</p>
     <p>AI use: the code was written with Claude Code. The agent runs on Groq with the openai/gpt-oss-120b model.</p>
   </div>
 </footer>
@@ -432,7 +434,7 @@ html.js .hero .wrap > h1 { animation-delay: 70ms; } html.js .hero .wrap > .lede 
 <script>
 "use strict";
 /* Set these at launch; until then the buttons say so instead of pointing nowhere. */
-const LINKS = { live: "https://modify-flyer-jill-charm.trycloudflare.com", video: "https://youtu.be/bqgNoxluHjw" };
+const LINKS = { live: "https://tone-searches-calgary-clubs.trycloudflare.com", video: "https://youtu.be/bqgNoxluHjw" };
 
 document.querySelectorAll("[data-config]").forEach((a) => {
   const url = LINKS[a.dataset.config];

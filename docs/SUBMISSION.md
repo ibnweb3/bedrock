@@ -19,6 +19,7 @@ Reference managers warn you when a paper you cite was retracted. They do not war
 - Demo video (2:15): https://youtu.be/bqgNoxluHjw
 - Live demo and product page: https://bedrock-audit.ibnweb3lab.workers.dev (the live app link is on that page and is served from the author's PC; if it is offline, run the one-command local setup below)
 - X post: https://x.com/ibnWeb3/status/2111400175331672463
+- Blog post (optional field; best post wins AirPods): https://bedrock-audit.ibnweb3lab.workers.dev/blog/
 
 **Run it locally (complete setup, rule 10):**
 ```
