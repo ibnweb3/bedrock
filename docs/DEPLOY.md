@@ -53,3 +53,26 @@ Memory: the loaded slim graph is about 138 MB, so the container needs roughly 30
 docker compose up -d falkordb        # FalkorDB on 127.0.0.1:6379
 python scripts/serve.py              # http://127.0.0.1:8765
 ```
+
+## Keeping the public demo alive (author's PC)
+
+The live demo is the app container on the author's PC behind a free Cloudflare quick tunnel, whose address can change or be dropped.
+`scripts/tunnel_watchdog.py` checks every minute: if the app is down it starts Docker Desktop and the `bedrock-live` container; if the public
+address stops answering it starts a new tunnel, writes the address into `site/index.html` and redeploys the product page. The product page is
+the stable address to share. A single-instance lock (local port 47831) stops two copies running.
+
+It runs as the Windows scheduled task `BedrockWatchdog` (trigger: at logon; no time limit; runs on battery). To (re)create or remove it:
+
+```powershell
+# create (adjust the repo path)
+$root = "C:\path\to\bedrock"; $me = whoami
+Register-ScheduledTask -TaskName BedrockWatchdog -Force `
+  -Action (New-ScheduledTaskAction -Execute "$root\.venv\Scripts\pythonw.exe" -Argument "scripts\tunnel_watchdog.py --port 8780" -WorkingDirectory $root) `
+  -Trigger (New-ScheduledTaskTrigger -AtLogOn -User $me) `
+  -Settings (New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero) -StartWhenAvailable -MultipleInstances IgnoreNew) `
+  -Principal (New-ScheduledTaskPrincipal -UserId $me -LogonType Interactive -RunLevel Limited)
+# remove
+Unregister-ScheduledTask -TaskName BedrockWatchdog -Confirm:$false
+```
+
+Log: `data/staging/watchdog.log`. It needs the user to be logged in (not just the PC on), `cloudflared` installed and `npx wrangler` logged in.
